@@ -68,8 +68,10 @@
   #'box? #,(get-box-static-infos)
   1
   #f
-  (lambda (arg-id predicate-stxs)
-    #`(#,(car predicate-stxs) (unbox #,arg-id)))
+  (lambda (predicate-stxs)
+    #`(let ([pred #,(car predicate-stxs)])
+        (lambda (arg)
+          (pred (unbox arg)))))
   (lambda (static-infoss)
     ;; no static info, since mutable and content is checked only initially
     #'())

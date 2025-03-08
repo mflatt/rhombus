@@ -438,11 +438,14 @@
                                   (key-comp-map-pair-build-id mapper)
                                   (key-comp-map-for-form-id mapper)))))))
 
-(define-for-syntax map-annotation-make-predicate
-  (lambda (arg-id predicate-stxs)
-    #`(for/and ([(k v) (in-immutable-hash #,arg-id)])
-        (and (#,(car predicate-stxs) k)
-             (#,(cadr predicate-stxs) v)))))
+(define-for-syntax (make-map-annotation-make-predicate in-form-stx)
+  (lambda (predicate-stxs)
+    #`(let ([key-pred #,(car predicate-stxs)]
+            [val-pred #,(cadr predicate-stxs)])
+        (lambda (arg)
+          (for/and ([(k v) (#,in-form-stx arg)])
+            (and (key-pred k)
+                 (val-pred v)))))))
 
 (define-for-syntax map-annotation-make-static-info
   (lambda (static-infoss)
@@ -455,7 +458,7 @@
   #'immutable-hash? #,(get-map-static-infos)
   2
   #f
-  map-annotation-make-predicate
+  (make-map-annotation-make-predicate #'in-immutable-hash)
   map-annotation-make-static-info
   #'map-build-convert #'(#hashalw()))
 
@@ -511,7 +514,7 @@
                           (parse-annotation-of #'(of-id . tail)
                                                (key-comp-map?-id mapper) (get-map-static-infos)
                                                2 #f
-                                               map-annotation-make-predicate
+                                               (make-map-annotation-make-predicate #'in-immutable-hash)
                                                map-annotation-make-static-info
                                                #'map-build-convert #`(#,(key-comp-empty-stx mapper)))]
                          [(form-id . tail)
@@ -594,10 +597,7 @@
   #'mutable-hash? #,(get-mutable-map-static-infos)
   2
   #f
-  (lambda (arg-id predicate-stxs)
-    #`(for/and ([(k v) (in-hash #,arg-id)])
-        (and (#,(car predicate-stxs) k)
-             (#,(cadr predicate-stxs) v))))
+  (make-map-annotation-make-predicate #'in-hash)
   (lambda (static-infoss)
     ;; no static info, since mutable and content is checked only initially
     #'())

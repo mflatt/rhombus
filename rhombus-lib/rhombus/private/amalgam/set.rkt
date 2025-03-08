@@ -629,10 +629,12 @@
                                 composite-data))
      #`(composite-binder-id 'set evidence-ids composite-data)]))
 
-(define-for-syntax set-annotation-make-predicate
-  (lambda (arg-id predicate-stxs)
-    #`(for/and ([v (in-immutable-hash-keys (set-ht #,arg-id))])
-        (#,(car predicate-stxs) v))))
+(define-for-syntax (make-set-annotation-make-predicate in-form-stx)
+  (lambda (predicate-stxs)
+    #`(let ([pred #,(car predicate-stxs)])
+        (lambda (arg)
+          (for/and ([v (#,in-form-stx (set-ht arg))])
+            (pred v))))))
 
 (define-for-syntax set-annotation-make-static-info
   (lambda (static-infoss)
@@ -643,7 +645,7 @@
   #'immutable-set? #,(get-set-static-infos)
   1
   #f
-  set-annotation-make-predicate
+  (make-set-annotation-make-predicate #'in-immutable-hash-keys)
   set-annotation-make-static-info
   #'set-build-convert #'(#hashalw()))
 
@@ -697,7 +699,7 @@
                           (parse-annotation-of #'(of-id . tail)
                                                (key-comp-set?-id mapper) (get-set-static-infos)
                                                1 #f
-                                               set-annotation-make-predicate
+                                               (make-set-annotation-make-predicate #'in-immutable-hash-keys)
                                                set-annotation-make-static-info
                                                #'set-build-convert #`(#,(key-comp-empty-stx mapper)))]
                          [(form-id . tail)
@@ -785,9 +787,7 @@
   #'mutable-set? #,(get-mutable-set-static-infos)
   1
   #f
-  (lambda (arg-id predicate-stxs)
-    #`(for/and ([k (in-hash-keys (set-ht #,arg-id))])
-        (#,(car predicate-stxs) k)))
+  (make-set-annotation-make-predicate #'in-hash-keys)
   (lambda (static-infoss) #'())
   "converter annotation not supported for elements;\n immediate checking needs a predicate annotation for the mutable set content"
   #'())

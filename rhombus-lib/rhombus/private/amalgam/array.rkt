@@ -87,9 +87,11 @@
   () #'vector? #,(get-array-static-infos)
   1
   #f
-  (lambda (arg-id predicate-stxs)
-    #`(for/and ([e (in-vector #,arg-id)])
-        (#,(car predicate-stxs) e)))
+  (lambda (predicate-stxs)
+    #`(let ([pred #,(car predicate-stxs)])
+        (lambda (arg)
+          (for/and ([e (in-vector arg)])
+            (pred e)))))
   (lambda (static-infoss)
     ;; no static info, since mutable and content is checked only initially
     #'())

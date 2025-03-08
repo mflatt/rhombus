@@ -309,9 +309,11 @@
                 (define c-static-infoss (syntax->list #'(c.static-infos ...)))
                 (relocate+reraw
                  loc
-                 (annotation-predicate-form #`(lambda (v)
-                                                (and (#,predicate-stx v)
-                                                     #,(predicate-maker #'v c-predicates)))
+                 (annotation-predicate-form #`(let ([immed-pred #,predicate-stx]
+                                                    [pred #,(predicate-maker c-predicates)])
+                                                (lambda (v)
+                                                  (and (immed-pred v)
+                                                       (pred v))))
                                             #`(#,@(info-maker c-static-infoss)
                                                . #,static-infos)))]
                [_ #f]))]
@@ -359,9 +361,11 @@
          (annotation-binding-form
           (binding-form #'annotation-of-infoer/chaperone
                         #`[#,(shrubbery-tail->string new-stx)
-                           (lambda (val-in)
-                             (and (#,predicate-stx val-in)
-                                  (#,(predicate-maker c-predicates annot-strs) val-in)))
+                           (let ([immed-pred #,predicate-stx]
+                                 [pred #,(predicate-maker c-predicates annot-strs)])
+                             (lambda (val-in)
+                               (and (immed-pred val-in)
+                                    (pred val-in))))
                            #,static-infos
                            result])
           #'result
@@ -793,30 +797,31 @@
                           ([c-binding c-body] ...) static-infos result-id kws])
      (define binding-maker (syntax-local-value #'binding-maker-id))
      (define converter
-       #`(lambda (val-in)
-           (and (predicate-stx val-in)
-                #,(binding-maker
-                   #'val-in
-                   (for/list ([c-binding (in-list (syntax->list #'(c-binding ...)))]
-                              [c-body (in-list (syntax->list #'(c-body ...)))])
-                     (syntax-parse c-binding
-                       [arg-parsed::binding-form
-                        #:with arg-impl::binding-impl #'(arg-parsed.infoer-id () arg-parsed.data)
-                        #:with arg-info::binding-info #'arg-impl.info
-                        #:with ((bind-id bind-use . bind-static-infos) ...) #'arg-info.bind-infos
-                        #`(lambda (val-in success-k fail-k)
-                            (arg-info.matcher-id val-in
-                                                 arg-info.data
-                                                 if/blocked
-                                                 (begin
-                                                   (arg-info.committer-id val-in arg-info.evidence-ids arg-info.data)
-                                                   (arg-info.binder-id val-in arg-info.evidence-ids arg-info.data)
-                                                   (define-static-info-syntax/maybe bind-id . bind-static-infos)
-                                                   ...
-                                                   (success-k #,c-body))
-                                                 (fail-k)))]))
-                   (syntax->datum #'kws)
-                   #'binding-maker-data))))
+       #`(let ([pred predicate-stx])
+           (lambda (val-in)
+             (and (pred val-in)
+                  #,(binding-maker
+                     #'val-in
+                     (for/list ([c-binding (in-list (syntax->list #'(c-binding ...)))]
+                                [c-body (in-list (syntax->list #'(c-body ...)))])
+                       (syntax-parse c-binding
+                         [arg-parsed::binding-form
+                          #:with arg-impl::binding-impl #'(arg-parsed.infoer-id () arg-parsed.data)
+                          #:with arg-info::binding-info #'arg-impl.info
+                          #:with ((bind-id bind-use . bind-static-infos) ...) #'arg-info.bind-infos
+                          #`(lambda (val-in success-k fail-k)
+                              (arg-info.matcher-id val-in
+                                                   arg-info.data
+                                                   if/blocked
+                                                   (begin
+                                                     (arg-info.committer-id val-in arg-info.evidence-ids arg-info.data)
+                                                     (arg-info.binder-id val-in arg-info.evidence-ids arg-info.data)
+                                                     (define-static-info-syntax/maybe bind-id . bind-static-infos)
+                                                     ...
+                                                     (success-k #,c-body))
+                                                   (fail-k)))]))
+                     (syntax->datum #'kws)
+                     #'binding-maker-data)))))
      (binding-info #'annotation-str
                    #'composite
                    #'static-infos
