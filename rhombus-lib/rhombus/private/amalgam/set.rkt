@@ -380,6 +380,7 @@
                    #'empty
                    (static-infos-and #'static-infos #'up-static-infos)
                    #'()
+                   #'empty-oncer
                    #'empty-set-matcher
                    #'()
                    #'literal-commit-nothing
@@ -577,20 +578,29 @@
                    #'composite-info.name-id
                    #'composite-info.static-infos
                    #'composite-info.bind-infos
+                   #'set-oncer
                    #'set-matcher
                    #'composite-info.evidence-ids
                    #'set-committer
                    #'set-binder
                    #'(mode
                       keys rest-tmp
-                      composite-info.matcher-id composite-info.committer-id composite-info.binder-id
+                      composite-info.oncer-id composite-info.matcher-id composite-info.committer-id composite-info.binder-id
                       composite-info.data))]))
+
+(define-syntax (set-oncer stx)
+  (syntax-parse stx
+    [(_ (mode
+            keys rest-tmp
+            composite-oncer-id composite-matcher-id composite-committer-id composite-binder-id
+            composite-data))
+     #`(composite-oncer-id composite-data)]))
 
 (define-syntax (set-matcher stx)
   (syntax-parse stx
     [(_ arg-id ([desc pred filter]
                 keys rest-tmp
-                composite-matcher-id composite-binder-id composite-committer-id
+                composite-oncer-id composite-matcher-id composite-binder-id composite-committer-id
                 composite-data)
         IF success failure)
      (define key-tmps (generate-temporaries #'keys))
@@ -617,7 +627,7 @@
   (syntax-parse stx
     [(_ arg-id evidence-ids (mode
                                 keys rest-tmp
-                                composite-matcher-id composite-committer-id composite-binder-id
+                                composite-oncer-id composite-matcher-id composite-committer-id composite-binder-id
                                 composite-data))
      #`(composite-committer-id 'set evidence-ids composite-data)]))
 
@@ -625,7 +635,7 @@
   (syntax-parse stx
     [(_ arg-id evidence-ids (mode
                                 keys rest-tmp
-                                composite-matcher-id composite-committer-id composite-binder-id
+                                composite-oncer-id composite-matcher-id composite-committer-id composite-binder-id
                                 composite-data))
      #`(composite-binder-id 'set evidence-ids composite-data)]))
 
@@ -651,9 +661,9 @@
 
 (define-for-syntax (make-set-later-chaperoner who)
   (lambda (predicate-stxes annot-strs)
-    #`(lambda (st)
-        (let ([k-pred #,(car predicate-stxes)]
-              [k-str #,(car annot-strs)])
+    #`(let ([k-pred #,(car predicate-stxes)]
+            [k-str #,(car annot-strs)])
+        (lambda (st)
           (chaperone-struct
            st
            set-ht

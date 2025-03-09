@@ -163,3 +163,12 @@ block:
   check [(x :: List).length(), ...] ~is [0, 2, 3]
   check [x :~ List, ...] ~is [[], [2, 3], [4, 5, 6]]
   check [(x :~ List).length(), ...] ~is [0, 2, 3]
+
+check:
+  fun f(x :: Any.of(block: println("now"); 1),
+        ...):
+    #'ok
+  f(1, 1)
+  f()
+  f(1, 1, 1, 1, 1)
+  ~prints "now\nnow\nnow\n"

@@ -107,8 +107,8 @@
           (unless (pred v)
             (raise-reelementer-error '#,what idx v '#,(car annot-strs)))
           v))
-    #`(lambda (vec)
-        (let ([pred #,(car predicate-stxes)])
+    #`(let ([pred #,(car predicate-stxes)])
+        (lambda (vec)
           (chaperone-vector vec
                             #,(make-reelementer "current")
                             #,(make-reelementer "new")))))

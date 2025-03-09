@@ -88,8 +88,8 @@
           (unless (pred v)
             (raise-reboxer-error '#,what v '#,(car annot-strs)))
           v))
-    #`(lambda (bx)
-        (let ([pred #,(car predicate-stxes)])
+    #`(let ([pred #,(car predicate-stxes)])
+        (lambda (bx)
           (chaperone-box bx
                          #,(make-reboxer "current")
                          #,(make-reboxer "new")))))

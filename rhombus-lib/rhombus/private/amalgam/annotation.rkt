@@ -178,17 +178,19 @@
               #:with arg-impl::binding-impl #'(arg-parsed.infoer-id () arg-parsed.data)
               #:with arg-info::binding-info #'arg-impl.info
               #:with ((bind-id bind-use . bind-static-infos) ...) #'arg-info.bind-infos
-              #:with converter #'(lambda (tmp-id who fail-k)
-                                   (arg-info.matcher-id tmp-id
-                                                        arg-info.data
-                                                        if/blocked
-                                                        (begin
-                                                          (arg-info.committer-id tmp-id arg-info.evidence-ids arg-info.data)
-                                                          (arg-info.binder-id tmp-id arg-info.evidence-ids arg-info.data)
-                                                          (define-static-info-syntax/maybe bind-id . bind-static-infos)
-                                                          ...
-                                                          c-parsed.body)
-                                                        (fail-k tmp-id who)))
+              #:with converter #'(let ()
+                                   (arg-info.oncer-id arg-info.data)
+                                   (lambda (tmp-id who fail-k)
+                                     (arg-info.matcher-id tmp-id
+                                                          arg-info.data
+                                                          if/blocked
+                                                          (begin
+                                                            (arg-info.committer-id tmp-id arg-info.evidence-ids arg-info.data)
+                                                            (arg-info.binder-id tmp-id arg-info.evidence-ids arg-info.data)
+                                                            (define-static-info-syntax/maybe bind-id . bind-static-infos)
+                                                            ...
+                                                            c-parsed.body)
+                                                          (fail-k tmp-id who))))
               #:with static-infos #'c-parsed.static-infos))
 
   (define-splicing-syntax-class :unparsed-inline-annotation
@@ -516,6 +518,7 @@
       #`(let* ([tmp-id (let ([arg-info.name-id #,form])
                          arg-info.name-id)]
                [fail-k (lambda () #,(build-fail #'tmp-id))])
+          (arg-info.oncer-id arg-info.data)
           (arg-info.matcher-id tmp-id
                                arg-info.data
                                if/blocked
@@ -597,6 +600,7 @@
          #:with arg-info::binding-info #'arg-impl.info
          #`(let ([val-in (let ([arg-info.name-id #,form])
                            arg-info.name-id)])
+             (arg-info.oncer-id arg-info.data)
              (arg-info.matcher-id val-in
                                   arg-info.data
                                   if/blocked
@@ -643,17 +647,25 @@
                        #'left.name-id
                        #'left.static-infos ; presumably includes `implied-static-infos` as passed to `left-infoer-id`
                        #'left.bind-infos
+                       #'left-oncer
                        #'check-predicate-matcher
                        #'left.evidence-ids
                        #'commit-nothing-new
                        #'bind-nothing-new
-                       #'(predicate left.matcher-id left.committer-id left.binder-id left.data))
+                       #'(predicate predicate-id left.oncer-id left.matcher-id left.committer-id left.binder-id left.data))
          #'left)]))
+
+(define-syntax (left-oncer stx)
+  (syntax-parse stx
+    [(_ (predicate predicate-id left-oncer-id left-matcher-id left-committer-id left-binder-id left-data))
+     #'(begin
+         (left-oncer-id left-data)
+         (define predicate-id predicate))]))
 
 (define-syntax (check-predicate-matcher stx)
   (syntax-parse stx
-    [(_ arg-id (predicate left-matcher-id left-committer-id left-binder-id left-data) IF success fail)
-     #'(IF (predicate arg-id)
+    [(_ arg-id (predicate predicate-id left-oncer-id left-matcher-id left-committer-id left-binder-id left-data) IF success fail)
+     #'(IF (predicate-id arg-id)
            (left-matcher-id
             arg-id
             left-data
@@ -664,12 +676,12 @@
 
 (define-syntax (commit-nothing-new stx)
   (syntax-parse stx
-    [(_ arg-id evidence-ids (predicate left-matcher-id left-committer-id left-binder-id left-data))
+    [(_ arg-id evidence-ids (predicate predicate-id left-oncer-id left-matcher-id left-committer-id left-binder-id left-data))
      #'(left-committer-id arg-id evidence-ids left-data)]))
 
 (define-syntax (bind-nothing-new stx)
   (syntax-parse stx
-    [(_ arg-id evidence-ids (predicate left-matcher-id left-committer-id left-binder-id left-data))
+    [(_ arg-id evidence-ids (predicate predicate-id left-oncer-id left-matcher-id left-committer-id left-binder-id left-data))
      #'(left-binder-id arg-id evidence-ids left-data)]))
 
 (define-syntax (annotation-binding-infoer stx)
@@ -686,16 +698,17 @@
                      #'left.name-id
                      #'arg-info.static-infos ; this is about the value coming in, not the converted value
                      #'left.bind-infos
+                     #'binding-oncer
                      matcher-id
                      (if converted-as-evidence?
                          #`(converted-id #,evidence-ids)
                          evidence-ids)
                      committer-id
                      binder-id
-                     #'([left.matcher-id left.committer-id left.binder-id left.data]
+                     #'([left.oncer-id left.matcher-id left.committer-id left.binder-id left.data]
                         converted-id
-                        [arg-info.matcher-id arg-info.evidence-ids arg-info.committer-id arg-info.binder-id arg-info.data
-                                             arg-info.bind-infos body])))
+                        [arg-info.oncer-id arg-info.matcher-id arg-info.evidence-ids arg-info.committer-id arg-info.binder-id arg-info.data
+                                           arg-info.bind-infos body])))
      (cond
        [(free-identifier=? #'always-succeed #'left.matcher-id)
         ;; in this case, we can commit and bind lazily for the annotation's binding
@@ -713,11 +726,22 @@
                             #'bind-via-converted
                             #t)])]))
 
+(define-syntax (binding-oncer stx)
+  (syntax-parse stx
+    [(_ ([left-oncer-id
+          left-matcher-id left-committer-id left-binder-id left-data]
+         converted-id
+         [arg-oncer-id
+          arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data . _]))
+     #'(begin
+         (left-oncer-id left-data)
+         (arg-oncer-id arg-data))]))
+
 (define-syntax (check-binding-check-convert stx)
   (syntax-parse stx
-    [(_ arg-id ([left-matcher-id left-committer-id left-binder-id left-data]
+    [(_ arg-id ([left-oncer-id left-matcher-id left-committer-id left-binder-id left-data]
                 converted-id
-                [arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data . _])
+                [arg-oncer-id arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data . _])
         IF success fail)
      ;; If we get here, then `left-matcher-id` is `always-succeed`
      #'(arg-matcher-id arg-id
@@ -728,10 +752,10 @@
 
 (define-syntax (commit-convert-then-via-converted stx)
   (syntax-parse stx
-    [(_ arg-id evidence-ids ([left-matcher-id left-committer-id left-binder-id left-data]
+    [(_ arg-id evidence-ids ([left-oncer-id left-matcher-id left-committer-id left-binder-id left-data]
                              converted-id
-                             [arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data
-                                             arg-bind-infos body]))
+                             [arg-oncer-id arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data
+                                           arg-bind-infos body]))
      #:with ((bind-id bind-use . bind-static-infos) ...) #'arg-bind-infos
      #'(begin
          (arg-committer-id arg-id evidence-ids arg-data)
@@ -743,7 +767,7 @@
 
 (define-syntax (bind-after-converted stx)
   (syntax-parse stx
-    [(_ arg-id evidence-ids ([left-matcher-id left-committer-id left-binder-id left-data]
+    [(_ arg-id evidence-ids ([left-oncer-id left-matcher-id left-committer-id left-binder-id left-data]
                              converted-id
                              arg/ignored-because-done))
      ;; If we get here, then `left-matcher-id` is `always-succeed`
@@ -751,10 +775,10 @@
 
 (define-syntax (check-binding-convert stx)
   (syntax-parse stx
-    [(_ arg-id ([left-matcher-id left-committer-id left-binder-id left-data]
+    [(_ arg-id ([left-oncer-id left-matcher-id left-committer-id left-binder-id left-data]
                 converted-id
-                [arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data
-                                arg-bind-infos body])
+                [arg-oncer-id arg-matcher-id arg-evidence-ids arg-committer-id arg-binder-id arg-data
+                              arg-bind-infos body])
         IF success fail)
      #:with ((bind-id bind-use . bind-static-infos) ...) #'arg-bind-infos
      ;; Since we need to use `left-matcher-id` on the converted value, we
@@ -778,14 +802,14 @@
 
 (define-syntax (commit-via-converted stx)
   (syntax-parse stx
-    [(_ arg-id (converted-id evidence-ids) ([left-matcher-id left-committer-id left-binder-id left-data]
+    [(_ arg-id (converted-id evidence-ids) ([left-oncer-id left-matcher-id left-committer-id left-binder-id left-data]
                                             _
                                             arg-ignored-because-done))
      #'(left-committer-id converted-id evidence-ids left-data)]))
 
 (define-syntax (bind-via-converted stx)
   (syntax-parse stx
-    [(_ arg-id (converted-id evidence-ids) ([left-matcher-id left-committer-id left-binder-id left-data]
+    [(_ arg-id (converted-id evidence-ids) ([left-oncer-id left-matcher-id left-committer-id left-binder-id left-data]
                                             _
                                             arg/ignored-because-done))
      #'(left-binder-id converted-id evidence-ids left-data)]))
@@ -809,28 +833,31 @@
                           #:with arg-impl::binding-impl #'(arg-parsed.infoer-id () arg-parsed.data)
                           #:with arg-info::binding-info #'arg-impl.info
                           #:with ((bind-id bind-use . bind-static-infos) ...) #'arg-info.bind-infos
-                          #`(lambda (val-in success-k fail-k)
-                              (arg-info.matcher-id val-in
-                                                   arg-info.data
-                                                   if/blocked
-                                                   (begin
-                                                     (arg-info.committer-id val-in arg-info.evidence-ids arg-info.data)
-                                                     (arg-info.binder-id val-in arg-info.evidence-ids arg-info.data)
-                                                     (define-static-info-syntax/maybe bind-id . bind-static-infos)
-                                                     ...
-                                                     (success-k #,c-body))
-                                                   (fail-k)))]))
+                          #`(let ()
+                              (arg-info.oncer-id arg-info.data)
+                              (lambda (val-in success-k fail-k)
+                                (arg-info.matcher-id val-in
+                                                     arg-info.data
+                                                     if/blocked
+                                                     (begin
+                                                       (arg-info.committer-id val-in arg-info.evidence-ids arg-info.data)
+                                                       (arg-info.binder-id val-in arg-info.evidence-ids arg-info.data)
+                                                       (define-static-info-syntax/maybe bind-id . bind-static-infos)
+                                                       ...
+                                                       (success-k #,c-body))
+                                                     (fail-k))))]))
                      (syntax->datum #'kws)
                      #'binding-maker-data)))))
      (binding-info #'annotation-str
                    #'composite
                    #'static-infos
                    #'((result-id (0)))
+                   #'annotation-of-oncer
                    #'annotation-of-matcher
                    #'(temp)
                    #'annotation-of-committer
                    #'annotation-of-binder
-                   #`[result-id temp #,converter])]))
+                   #`[result-id temp converter-id #,converter])]))
 
 (define-syntax (annotation-of-infoer/chaperone stx)
   (syntax-parse stx
@@ -839,28 +866,34 @@
                    #'composite
                    #'static-infos
                    #'((result-id (0)))
+                   #'annotation-of-oncer
                    #'annotation-of-matcher
                    #'(temp)
                    #'annotation-of-committer
                    #'annotation-of-binder
-                   #'[result-id temp convert])]))
+                   #'[result-id temp converter-id convert])]))
+
+(define-syntax (annotation-of-oncer stx)
+  (syntax-parse stx
+    [(_ [bind-id temp-id convert-id convert])
+     #'(define convert-id convert)]))
 
 (define-syntax (annotation-of-matcher stx)
   (syntax-parse stx
-    [(_ arg-id [bind-id temp-id convert]
+    [(_ arg-id [bind-id temp-id convert-id convert]
         IF success fail)
      #'(begin
-         (define temp-id (convert arg-id))
+         (define temp-id (convert-id arg-id))
          (IF temp-id success fail))]))
 
 (define-syntax (annotation-of-committer stx)
   (syntax-parse stx
-    [(_ arg-id (temp/evidence-id) [bind-id temp-id convert])
+    [(_ arg-id (temp/evidence-id) [bind-id temp-id convert-id convert])
      #'(begin)]))
 
 (define-syntax (annotation-of-binder stx)
   (syntax-parse stx
-    [(_ arg-id (temp/evidence-id) [bind-id temp-id convert])
+    [(_ arg-id (temp/evidence-id) [bind-id temp-id convert-id convert])
      #'(define bind-id temp/evidence-id)]))
 
 (define-syntax (annotation-predicate-binding-infoer stx)
@@ -871,6 +904,7 @@
                    #'arg
                    all-static-infos
                    #`((arg (0) . #,all-static-infos))
+                   #'empty-oncer
                    (syntax-parse #'predicate
                      [(lam (_) #t) ;; matches `Any` and maybe more
                       #:when (or (free-identifier=? #'lam #'lambda)
@@ -997,12 +1031,14 @@
          (relocate+reraw
           (datum->syntax #f (list #'form-id #'args))
           (annotation-predicate-form
-           #`(lambda (val-in)
-               (arg-info.matcher-id val-in
-                                    arg-info.data
-                                    if/blocked
-                                    #t
-                                    #f))
+           #`(let ()
+               (arg-info.oncer-id arg-info.data)
+               (lambda (val-in)
+                 (arg-info.matcher-id val-in
+                                      arg-info.data
+                                      if/blocked
+                                      #t
+                                      #f)))
            #'arg-info.static-infos))
          #'tail)]))))
 
@@ -1166,6 +1202,7 @@
                    #'val
                    #'()
                    #'((val (0)))
+                   #'empty-oncer
                    #'to_boolean-matcher
                    #'()
                    #'to_boolean-committer

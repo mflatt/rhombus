@@ -666,6 +666,7 @@
                    #'empty
                    (static-infos-and (get-treelist-static-infos) #'up-static-infos)
                    #'()
+                   #'empty-oncer
                    #'treelist-empty-matcher
                    #'()
                    #'literal-commit-nothing
@@ -679,6 +680,7 @@
                    #'empty
                    (static-infos-and (get-list-static-infos) #'up-static-infos)
                    #'()
+                   #'empty-oncer
                    #'empty-matcher
                    #'()
                    #'literal-commit-nothing
