@@ -15,12 +15,14 @@
 (define (transform-out stx)
   (syntax-local-introduce stx))
 
-(define (call-as-transformer id args track-origin use-site-scopes? proc)
+(define (call-as-transformer id args track-origin use-site-scopes? intdef-ctx proc)
   (call-with-values
    (lambda ()
      (apply syntax-local-apply-transformer
             proc
-            id
+            (if intdef-ctx
+                (internal-definition-context-add-scopes intdef-ctx id)
+                id)
             (cond
               [use-site-scopes?
                (define context (syntax-local-context))
@@ -32,7 +34,7 @@
                (if (eq? 'top-level (syntax-local-context))
                    'top-level
                    'expression)])
-            #f
+            intdef-ctx
             (map syntax-local-introduce args)))
    (lambda stxes
      (apply values

@@ -84,7 +84,7 @@
     (call-as-transformer
      id
      (list stx tail)
-     track-origin use-site-scopes?
+     track-origin use-site-scopes? #f
      (lambda (stx tail)
        (define-values (forms new-tail) (apply proc stx orig-head tail env))
        (values (datum->syntax #f (apply checker forms proc env))

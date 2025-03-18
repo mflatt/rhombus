@@ -16,7 +16,7 @@
                  (define lxc (syntax-local-value* head-id name-root-ref))]
            #:when lxc
            #:cut
-           #:do [(define-values (head tail) (apply-name-root head-id lxc in-space #'stxes))]
+           #:do [(define-values (head tail) (apply-name-root head-id lxc in-space #'stxes #f #f))]
            #:with (~var r (:hier-name-seq in-name-root-space in-space name-path-op name-root-ref)) #`(#,head . #,tail)
            #:with (next-head . _) #'orig-tail
            #:attr name #'r.name
