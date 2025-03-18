@@ -111,7 +111,7 @@
 ;;       - 'same (error because no associativity)
 ;;       - 'same-on-left (error because on right)
 ;;       - #f (no precedence relation)
-(define (relative-precedence left-op-name left-op op-name op)
+(define (relative-precedence left-op-name left-op op-name op intdef-ctx)
   (define (find op-name op-order-name this-op-name this-order? precs)
     (let loop ([precs precs] [by-order #f] [default #f])
       (cond
@@ -141,7 +141,7 @@
                      (o)
                      o))
     (values name
-            (and name (syntax-local-value* name order-ref))))
+            (and name (syntax-local-value* name order-ref intdef-ctx))))
   (define-values (left-order-name left-order) (extract-order left-op))
   (define-values (op-order-name op-order) (extract-order op))
   (define dir1/op (find left-op-name left-order-name op-name #f (extract (operator-precedences op))))
@@ -186,9 +186,9 @@
         (car (if (syntax? e) (syntax-e e) e)))
       adj-context))
 
-(define (lookup-prefix-implicit alone-name adj-context adj-form in-space operator-ref operator-kind form-kind)
+(define (lookup-prefix-implicit alone-name adj-context adj-form in-space operator-ref operator-kind form-kind intdef-ctx)
   (define op-stx (in-space (datum->syntax (extract-context adj-context) alone-name)))
-  (define op (syntax-local-value* op-stx operator-ref))
+  (define op (syntax-local-value* op-stx operator-ref intdef-ctx))
   (unless op
     (raise-syntax-error #f
                         (format (string-append
@@ -205,9 +205,9 @@
   (values op op-stx))
 
 (define (lookup-infix-implicit adjacent-name prev-form adj-context adj-form in-space operator-ref operator-kind form-kind
-                               stop-on-unbound? lookup-space-description)
+                               stop-on-unbound? lookup-space-description intdef-ctx)
   (define op-stx (in-space (datum->syntax (extract-context adj-context) adjacent-name)))
-  (define op (syntax-local-value* op-stx operator-ref))
+  (define op (syntax-local-value* op-stx operator-ref intdef-ctx))
   (unless op
     (cond
       [(identifier? prev-form)
@@ -266,46 +266,46 @@
 (define (lookup-space-description space-sym)
   #f)
 
-(define (apply-prefix-direct-operator env op form stx track-origin use-site-scopes? checker)
+(define (apply-prefix-direct-operator env op form stx track-origin use-site-scopes? intdef-ctx-extractor checker)
   (define proc (operator-proc op))
   (checker (call-as-transformer
             stx
             (list form)
-            track-origin use-site-scopes?
+            track-origin use-site-scopes? (intdef-ctx-extractor env)
             (lambda (form)
               (apply proc form stx env)))
            proc))
 
-(define (apply-infix-direct-operator env op form1 form2 stx track-origin use-site-scopes? checker)
+(define (apply-infix-direct-operator env op form1 form2 stx track-origin use-site-scopes? intdef-ctx-extractor checker)
   (define proc (operator-proc op))
   (checker (call-as-transformer
             stx
             (list form1 form2)
-            track-origin use-site-scopes?
+            track-origin use-site-scopes? (intdef-ctx-extractor env)
             (lambda (form1 form2)
               (apply proc form1 form2 stx env)))
            proc))
 
-(define (apply-prefix-transformer-operator env op op-stx tail track-origin use-site-scopes? checker)
+(define (apply-prefix-transformer-operator env op op-stx tail track-origin use-site-scopes? intdef-ctx-extractor checker)
   (define proc (operator-proc op))
   (define-values (form new-tail)
     (call-as-transformer
      op-stx
      (list tail)
-     track-origin use-site-scopes?
+     track-origin use-site-scopes? (intdef-ctx-extractor env)
      (lambda (tail)
        (define-values (form new-tail) (apply proc tail env))
        (values (apply checker form proc env)
                new-tail))))
   (check-transformer-result form new-tail proc))
 
-(define (apply-infix-transformer-operator env op op-stx form1 tail track-origin use-site-scopes? checker)
+(define (apply-infix-transformer-operator env op op-stx form1 tail track-origin use-site-scopes? intdef-ctx-extractor checker)
   (define proc (operator-proc op))
   (define-values (form new-tail)
     (call-as-transformer
      op-stx
      (list form1 tail)
-     track-origin use-site-scopes?
+     track-origin use-site-scopes? (intdef-ctx-extractor env)
      (lambda (form1 tail)
        (define-values (form new-tail) (apply proc form1 tail env))
        (values (apply checker form proc env)

@@ -136,6 +136,34 @@
 
 @doc(
   ~meta
+  fun syntax_meta.make_definition_context(
+    parent :: maybe(syntax_meta.DefinitionContext) = #false
+  ) :: syntax_meta.DefinitionContext
+  fun syntax_meta.add_definitions(
+    def_ctx :: syntax_meta.DefinitionContext,
+    defns :: Syntax
+  ) :: Void
+  annot.macro 'syntax_meta.DefinitionContext'
+){
+
+ The @rhombus(syntax_meta.make_definition_context) function creates a
+ @deftech{definition context} to hold expansion-time definitions. The
+ @rhombus(syntax_meta.add_definitions) function accepts a syntax object
+ with definition forms, and it adds those definitions to the context.
+
+ Only definitions that bind expansion-time values are allowed, such as
+ @rhombus(macro), @rhombus(expr.macro), and @rhombus(meta.bridge).
+ Definitions for run-time values, such as @rhombus(def) or @rhombus(let),
+ are not allowed.
+
+ A definition context can be used with a syntax class for a space
+ that is defined with @rhombus(space.enforest) and containing a
+ @rhombus(parse_definition_context_argument, ~space_meta_clause) clause.
+
+}
+
+@doc(
+  ~meta
   fun syntax_meta.is_static(stx :: Name) :: Boolean
 ){
 

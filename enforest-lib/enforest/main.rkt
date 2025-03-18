@@ -110,6 +110,8 @@
                          #:defaults ([track-origin #'syntax-track-origin]))
               (~optional (~seq #:use-site-scopes? use-site-scopes?)
                          #:defaults ([use-site-scopes? #'#f]))
+              (~optional (~seq #:definition-context-extractor intdef-ctx-extractor)
+                         #:defaults ([intdef-ctx-extractor #'#f]))
               (~optional (~seq #:make-identifier-form make-identifier-form)
                          #:defaults ([make-identifier-form #'(lambda (id . env) id)]))
               (~optional (~seq #:make-operator-form make-operator-form)
@@ -167,7 +169,7 @@
          (define enforest-step (make-enforest-step form-kind-str operator-kind-str
                                                    in-space prefix-operator-ref infix-operator-ref
                                                    name-path-op in-name-root-space name-root-ref
-                                                   check-result track-origin use-site-scopes? 'parsed-tag
+                                                   check-result track-origin use-site-scopes? intdef-ctx-extractor 'parsed-tag
                                                    make-identifier-form
                                                    make-operator-form
                                                    -select-prefix-implicit -select-infix-implicit -juxtapose-implicit-name
@@ -198,11 +200,12 @@
 (define (make-enforest-step form-kind-str operator-kind-str
                             in-space prefix-operator-ref infix-operator-ref
                             name-path-op in-name-root-space name-root-ref
-                            check-result track-origin use-site-scopes? parsed-tag
+                            check-result track-origin use-site-scopes? intdef-ctx-extractor-in parsed-tag
                             make-identifier-form
                             make-operator-form
                             select-prefix-implicit select-infix-implicit juxtapose-implicit-name
                             lookup-space-description)
+  (define intdef-ctx-extractor (or intdef-ctx-extractor-in (lambda (env) #f)))
   (define (raise-unbound-operator op-stx)
     (raise-syntax-error #f
                         (string-append "unbound " operator-kind-str)
@@ -223,15 +226,16 @@
            (define head-name (and name-path? (in-name-root-space #'head.name)))
            (cond
              [(and name-path?
-                   (syntax-local-value* head-name name-root-ref))
+                   (syntax-local-value* head-name name-root-ref (intdef-ctx-extractor env)))
               => (lambda (v)
-                   (define-values (head tail) (apply-name-root head-name v in-space stxes))
+                   (define-values (head tail) (apply-name-root head-name v in-space stxes env intdef-ctx-extractor))
                    (enforest-step env (datum->syntax #f (cons head tail)) current-op current-op-stx stop-on-unbound?))]
              [else
               (define head-id (in-space #'head.name))
               (define v (syntax-local-value* head-id (lambda (v)
                                                        (or (prefix-operator-ref v)
-                                                           (infix-operator-ref v)))))
+                                                           (infix-operator-ref v)))
+                                             (intdef-ctx-extractor env)))
               (cond
                 [(prefix-operator? v)
                  (dispatch-prefix-operator v #'tail stxes head-id)]
@@ -257,7 +261,8 @@
             [(eq? (operator-protocol op) 'macro)
              ;; it's up to the transformer to consume whatever it wants after the operator
              (define-values (form new-tail) (apply-prefix-transformer-operator env op op-stx stxes
-                                                                               track-origin use-site-scopes? check-result))
+                                                                               track-origin use-site-scopes? intdef-ctx-extractor
+                                                                               check-result))
              (enforest-step env form new-tail current-op current-op-stx stop-on-unbound?)]
             [else
              ;; new operator sets precedence, defer application of operator until a suitable
@@ -265,7 +270,8 @@
              (define-values (form new-tail) (enforest-step env (check-empty op-stx tail form-kind-str) op op-stx stop-on-unbound?))
              (enforest-step env
                             (apply-prefix-direct-operator env op form op-stx
-                                                          track-origin use-site-scopes? check-result)
+                                                          track-origin use-site-scopes? intdef-ctx-extractor
+                                                          check-result)
                             new-tail
                             current-op
                             current-op-stx
@@ -274,7 +280,8 @@
         (define (dispatch-prefix-implicit implicit-name context-stx head-stx)
           (define-values (op op-stx) (lookup-prefix-implicit implicit-name context-stx head-stx in-space
                                                              prefix-operator-ref
-                                                             operator-kind-str form-kind-str))
+                                                             operator-kind-str form-kind-str
+                                                             (intdef-ctx-extractor env)))
           (define synthetic-stxes (datum->syntax #f (cons op-stx stxes)))
           (dispatch-prefix-operator op stxes synthetic-stxes op-stx)))]
 
@@ -287,15 +294,16 @@
            (define head-name (and name-path? (in-name-root-space #'head.name)))
            (cond
              [(and name-path?
-                   (syntax-local-value* head-name name-root-ref))
+                   (syntax-local-value* head-name name-root-ref (intdef-ctx-extractor env)))
               => (lambda (v)
-                   (define-values (head tail) (apply-name-root head-name v in-space stxes))
+                   (define-values (head tail) (apply-name-root head-name v in-space stxes env intdef-ctx-extractor))
                    (enforest-step env init-form (datum->syntax #f (cons head tail)) current-op current-op-stx stop-on-unbound?))]
              [else
               (define head-id (in-space #'head.name))
               (define v (syntax-local-value* head-id (lambda (v)
                                                        (or (infix-operator-ref v)
-                                                           (prefix-operator-ref v)))))
+                                                           (prefix-operator-ref v)))
+                                             (intdef-ctx-extractor env)))
               (cond
                 [(infix-operator? v)
                  (dispatch-infix-operator v #'tail stxes head-id)]
@@ -319,14 +327,15 @@
         (define (dispatch-infix-operator op tail stxes op-stx)
           (define rel-prec (if (not current-op)
                                'weaker
-                               (relative-precedence current-op-stx current-op op-stx op)))
+                               (relative-precedence current-op-stx current-op op-stx op (intdef-ctx-extractor env))))
           (cond
             [(eq? rel-prec 'weaker)
              (cond
                [(eq? (operator-protocol op) 'macro)
                 ;; it's up to the transformer to consume whatever it wants after the operator
                 (define-values (form new-tail) (apply-infix-transformer-operator env op op-stx init-form stxes
-                                                                                 track-origin use-site-scopes? check-result))
+                                                                                 track-origin use-site-scopes? intdef-ctx-extractor
+                                                                                 check-result))
                 (enforest-step env form new-tail current-op current-op-stx stop-on-unbound?)]
                [else
                 ;; new operator sets precedence, defer application of operator until a suitable
@@ -334,7 +343,8 @@
                 (define-values (form new-tail) (enforest-step env (check-empty op-stx tail form-kind-str) op op-stx stop-on-unbound?))
                 (enforest-step env
                                (apply-infix-direct-operator env op init-form form op-stx
-                                                            track-origin use-site-scopes? check-result)
+                                                            track-origin use-site-scopes? intdef-ctx-extractor
+                                                            check-result)
                                new-tail
                                current-op
                                current-op-stx
@@ -368,7 +378,8 @@
                                                             infix-operator-ref
                                                             operator-kind-str form-kind-str
                                                             stop-on-unbound?
-                                                            lookup-space-description))
+                                                            lookup-space-description
+                                                            (intdef-ctx-extractor env)))
           (cond
             [(not op) ; => `stop-on-unbound?`
              (values init-form stxes)]
@@ -401,7 +412,7 @@
                                   operator-kind-str
                                   in-space
                                   name-path-op prefix-operator-ref infix-operator-ref)
-  (lambda (left-mode left-op-stx right-mode right-op-stx)
+  (lambda (left-mode left-op-stx right-mode right-op-stx [intdef-ctx #f])
     (define (lookup mode op-stx)
       (case mode
         [(prefix) (syntax-local-value* (in-space op-stx) prefix-operator-ref)]
@@ -411,7 +422,7 @@
     (define left-op (lookup left-mode left-op-stx))
     (define right-op (lookup right-mode right-op-stx))
     (if (and left-op right-op)
-        (relative-precedence left-op-stx left-op right-op-stx right-op)
+        (relative-precedence left-op-stx left-op right-op-stx right-op intdef-ctx)
         'unbound)))
 
 (define (lookup-operator who what id ref)

@@ -18,6 +18,7 @@
                     parse_checker
                     parsed_packer
                     parsed_unpacker
+                    parse_definition_context_argument
                     identifier_parser))
 
 (module+ for-space-meta-macro
@@ -57,6 +58,8 @@
   (make-identifier-transformer '#:parsed_packer))
 (define-space-meta-clause-syntax parsed_unpacker
   (make-identifier-transformer '#:parsed_unpacker))
+(define-space-meta-clause-syntax parse_definition_context_argument
+  (make-identifier-transformer '#:parse_definition_context_argument))
 
 (define-for-syntax (make-expression-transformer kw)
   (space-meta-clause-transformer
@@ -80,7 +83,7 @@
   (for/fold ([options #hasheq()]) ([option (in-list (syntax->list options-stx))])
     (define (check what #:enforest-only? [enforest-only? #f])
       (syntax-parse option
-        [(kw stx . _)
+        [(_ (kw:keyword stx . _))
          (unless (or enforest? (not enforest-only?))
            (raise-syntax-error #f (format "~a not allowed in a transformer" what) orig-stx #'stx))
          (when (hash-ref options (syntax-e #'kw) #f)
@@ -122,6 +125,9 @@
        (when (hash-ref options '#:parsed_unpacker #f)
          (raise-syntax-error #f "multiple parsed unpacker names declared" orig-stx #'unpack))
        (hash-set options '#:parsed_unpacker #'unpack)]
+      [(_ (#:parse_definition_context_argument arg-id))
+       (check "definition-context argument identifier" #:enforest-only? #t)
+       (hash-set options '#:parse_definition_context_argument #'arg-id)]
       [(_ (#:identifier_transformer stx e))
        (check "identifier parser expressions" #:enforest-only? #t)
        (hash-set options '#:identifier_transformer #'e)]

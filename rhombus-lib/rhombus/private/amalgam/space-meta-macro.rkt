@@ -31,7 +31,8 @@
          "macro-result.rkt"
          (for-template (only-in "space.rkt" space-name))
          (submod "annotation.rkt" for-class)
-         "syntax-wrap.rkt")
+         "syntax-wrap.rkt"
+         "definition-context.rkt")
 
 (provide enforest-meta
          transform-meta
@@ -99,7 +100,20 @@
        (define class-arguments (hash-ref options '#:syntax_class_arguments #f))
        (when class-arguments
          (unless (= (length class-arguments) (length (syntax->list #'(extra-kw ...))))
-           (raise-syntax-error #f "syntax class argument count does not match macro definer's keyword count" class-name)))
+           (raise-syntax-error #f "syntax class argument count does not match macro definer's keyword count" #'orig-stx class-name)))
+       (define intdef-ctx-arg-id (hash-ref options '#:parse_definition_context_argument #f))
+       (define intdef-ctx-extractor-stx
+         (cond
+           [intdef-ctx-arg-id
+            (define i (and class-arguments
+                           (for/or ([id (in-list class-arguments)]
+                                    [i (in-naturals)])
+                             (and (bound-identifier=? id intdef-ctx-arg-id)
+                                  i))))
+            (unless i
+              (raise-syntax-error #f "definition-context argument name not among syntax-class arguments" #'orig-stx intdef-ctx-arg-id))
+            #`(lambda (env) (unpack-intdef-ctx '#,class-name (list-ref env #,i)))]
+           [else #'#f]))
        (define prefix-more-class-name (hash-ref options '#:syntax_class_prefix_more #'#f))
        (define infix-more-class-name (hash-ref options '#:syntax_class_infix_more #'#f))
        (define name-start-class-name (hash-ref options '#:syntax_class_name_start #'#f))
@@ -116,7 +130,7 @@
                                                            #,(and pack-and-unpack?
                                                                   #`(lambda (e env)
                                                                       (apply parse-group e env))))))
-       (define identifier-transformer (hash-ref options '#:identifier_transformer #'values))
+       (define identifier-transformer (hash-ref options '#:identifier_transformer #'(lambda (x . rest) x)))
        (define expose (make-expose #'scope-stx #'base-stx))
        (define exs (parse-exports #'(combine-out . exports) expose))
        (check-distinct-exports (exports->names exs)
@@ -146,7 +160,8 @@
                                           2)]
                      [unpack-parsed*/tag (if (syntax-e unpack-id)
                                              #`(unpack-parsed* '#,parsed-tag)
-                                             #'unpack-term*)])
+                                             #'unpack-term*)]
+                     [intdef-ctx-extractor intdef-ctx-extractor-stx])
          (define (build-name-start-syntax-class)
            (if (syntax-e name-start-class-name)
                (with-syntax ([name (quote-syntax name)])
@@ -182,6 +197,7 @@
                   #:enforest parse-group
                   #:prefix-more-syntax-class :prefix-more
                   #:infix-more-syntax-class :infix-more
+                  #:definition-context-extractor intdef-ctx-extractor
                   #:desc #,desc
                   #:operator-desc #,desc-operator
                   #:parsed-tag #,parsed-tag
@@ -382,3 +398,11 @@
      #:when (eq? (syntax-e #'kw) tag)
      #'form]
     [_ #:when fail-k (fail-k stx)]))
+
+(define (unpack-intdef-ctx who v)
+  (cond
+    [v
+     (unless (definition-context? v)
+       (raise-annotation-failure who v "DefinitionContext"))
+     (definition-context-def-ctx v)]
+    [else #f]))

@@ -70,6 +70,7 @@ driver and macro-definitions forms.
     #,(@rhombus(parse_syntax_class, ~space_meta_clause)) $id($id, ...)
     #,(@rhombus(parse_prefix_more_syntax_class, ~space_meta_clause)) $id
     #,(@rhombus(parse_infix_more_syntax_class, ~space_meta_clause)) $id
+    #,(@rhombus(parse_definition_context_argument, ~space_meta_clause)) $id
     #,(@rhombus(name_start_syntax_class, ~space_meta_clause)) $id
     #,(@rhombus(identifier_parser, ~space_meta_clause)) $meta_expr
     #,(@rhombus(parse_checker, ~space_meta_clause)) $meta_expr
@@ -249,14 +250,18 @@ driver and macro-definitions forms.
 
  @item{@rhombus(parse_prefix_more_syntax_class, ~space_meta_clause):
   declares an identifier to be bound as a @rhombus(~group) syntax class
-  that takes one argument and has @rhombus(group, ~datum) and
+  that takes (at least) one argument and has @rhombus(group, ~datum) and
   @rhombus(tail, ~datum) fields. The argument is a syntax object containing
   a prefix operator or identifier that is bound for the space. Parsing
   proceeds as if after the argument of the operator, which means that
   parsing can stop with a tail sequence remaining. The parsed ``argument''
   is is the matched result, the consumed terms are in a
   @rhombus(group, ~datum) field, and the remaining tail is a
-  @rhombus(tail, ~datum) repetition field.}
+  @rhombus(tail, ~datum) repetition field. If
+  @rhombus(parse_syntax_class, ~space_meta_clause) specifies arguments in
+  parentheses, then the syntax class for
+  @rhombus(parse_prefix_more_syntax_class, ~space_meta_clause) takes the
+  same arguments after the prefix syntax object.}
 
  @item{@rhombus(parse_infix_more_syntax_class, ~space_meta_clause):
   declares an identifier like
@@ -264,6 +269,13 @@ driver and macro-definitions forms.
   syntax class expects a syntax object with an infix operator or
   identifier. Parsing can stop when reaching an infix operator in the
   group whose precedence is weaker than the starting one.}
+
+ @item{@rhombus(parse_definition_context_argument, ~space_meta_clause):
+  declares that an identifier listed as an argument in
+  @rhombus(parse_syntax_class, ~space_meta_clause) is either
+  @rhombus(#false) or a definition context in the sense of
+  @rhombus(syntax_meta.make_definition_context). When a definition
+  context is supplied, it is used for expansion.}
 
  @item{@rhombus(name_start_syntax_class, ~space_meta_clause): declares
   an identifier to be bound as a @rhombus(~group) syntax class, which has
@@ -373,6 +385,7 @@ driver and macro-definitions forms.
   space_meta_clause.macro 'parse_syntax_class $id($id, ...)'
   space_meta_clause.macro 'parse_prefix_more_syntax_class $id'
   space_meta_clause.macro 'parse_infix_more_syntax_class $id'
+  space_meta_clause.macro 'parse_definition_context_argument $id'
   space_meta_clause.macro 'name_start_syntax_class $id'
   space_meta_clause.macro 'identifier_parser $expr'
   space_meta_clause.macro 'parse_checker $expr'

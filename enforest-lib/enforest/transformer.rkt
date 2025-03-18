@@ -120,7 +120,7 @@
   (call-as-transformer
    id
    (list stx)
-   track-origin use-site-scopes?
+   track-origin use-site-scopes? #f
    (lambda (stx)
      (define forms (apply checker (apply proc stx env) proc env))
      (datum->syntax #f forms))))

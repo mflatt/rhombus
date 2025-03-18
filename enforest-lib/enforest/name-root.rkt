@@ -15,13 +15,13 @@
 
 (property name-root (proc))
   
-(define (apply-name-root op-stx lxc in-space stxes)
+(define (apply-name-root op-stx lxc in-space stxes env intdef-ctx-extractor)
   (define proc (name-root-proc lxc))
   (define-values (target tail)
     (call-as-transformer
      op-stx
      (list stxes)
-     syntax-track-origin #f
+     syntax-track-origin #f (and intdef-ctx-extractor (intdef-ctx-extractor env))
      (lambda (stxes)
        (define-values (target tail) (proc in-space stxes))
        (unless (or (identifier? target)

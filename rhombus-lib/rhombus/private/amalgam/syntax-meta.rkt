@@ -18,11 +18,14 @@
                      "srcloc.rkt"
                      "treelist.rkt"
                      "context-stx.rkt"
-                     "syntax-wrap.rkt")
+                     "syntax-wrap.rkt"
+                     "definition-context.rkt")
          "space.rkt"
          "is-static.rkt"
          "static-info.rkt"
-         "operator-compare.rkt")
+         "operator-compare.rkt"
+         "forwarding-sequence.rkt"
+         "parse.rkt")
 
 (module+ for-unquote
   (provide (for-syntax syntax_meta.equal_binding)))
@@ -45,7 +48,10 @@
      [is_static syntax_meta.is_static]
      [dynamic_name syntax_meta.dynamic_name]
      [parse_dot_expr syntax_meta.parse_dot_expr]
-     [parse_dot_repet syntax_meta.parse_dot_repet]))
+     [parse_dot_repet syntax_meta.parse_dot_repet]
+     [make_definition_context syntax_meta.make_definition_context]
+     [add_definitions syntax_meta.add_definitions]
+     DefinitionContext))
 
   (define expr-space-path (space-syntax #f))
 
@@ -200,6 +206,33 @@
        (relocate+reraw name-stx (add-dynamism-context #'n.name static? (space-name-symbol sp)))]
       [_
        (raise-annotation-failure who name-stx "Name")]))
+
+  (define/arity (syntax_meta.make_definition_context [parent #f])
+    (unless (or (not parent) (definition-context? parent))
+      (raise-annotation-failure who parent "DefinitionContext"))
+    (definition-context
+      (syntax-local-make-definition-context
+       (and parent (definition-context-def-ctx parent)))
+      (cons (gensym)
+            (if parent
+                (definition-context-expand-context parent)
+                null))
+      (box #hasheq())))
+
+  (define/arity (syntax_meta.add_definitions ctx stx)
+    (unless (definition-context? ctx)
+      (raise-annotation-failure who ctx "DefinitionContext"))
+    (unless (syntax? stx)
+      (raise-annotation-failure who stx "Syntax"))
+    (define gs (unpack-multi stx who #f))
+    (expand-bridge-definition-sequence #`(rhombus-body-sequence #,@gs)
+                                       (definition-context-def-ctx ctx)
+                                       (definition-context-expand-context ctx)
+                                       (definition-context-params-box ctx))
+    (void))
+
+  (define-annotation-syntax DefinitionContext
+    (identifier-annotation definition-context? ()))
 
   (define-annotation-syntax SyntaxPhase
     (identifier-annotation phase? ())))
