@@ -1,0 +1,400 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/rx open
+  lib("net/http-easy.rkt") as easy:
+    expose:
+      response
+  lib("racket/match.rkt"):
+    expose:
+      match as rkt_match
+  lib("racket/base.rkt"):
+    expose:
+      quote
+  net/url
+
+// todo:
+annot.macro 'JSON': 'Any'
+annot.macro 'HTTPConn': 'Any'
+annot.macro 'SSLContext': 'Any'
+
+export:
+  get
+  post
+  delete
+  head
+  options
+  patch
+  put
+ 
+  Response
+  Session
+  Timeouts
+  LiteralURL
+
+  Method
+  Headers
+  StatusCode
+
+  current_user_agent
+
+  auth
+  payload
+  Proxy
+
+  Exn.Fail.HTTP
+
+enum Method:
+  get
+  post
+  delete
+  head
+  options
+  patch
+  put
+
+annot.macro 'Headers':
+  'Map.of(Symbol, Bytes || String)'
+
+annot.macro 'StatusCode':
+  'Int.in(100, 999)'
+
+namespace auth:
+  export:
+    Function
+    basic
+    bearer
+  annot.macro 'Function':
+    '(url.URL, Headers, List.of(url.KeyValue)) -> values(Headers, List.of(url.KeyValue))'
+  fun basic(~username: username :: String || Bytes,
+            ~password: password :: String || Bytes) :: Function:
+    easy.#{basic-auth}(username, password)
+  fun bearer(~token: token :: String || Bytes) :: Function:
+    easy.#{bearer-auth}(token)
+
+namespace payload:
+  export:
+    Function  
+  annot.macro 'Function':
+    '(Headers) -> values(Headers, Bytes || String || Port.Input)'
+  fun buffered(f :: Function) :: Function:
+    easy.#{buffered-payload}(f)
+  fun form(f :: List.of(url.KeyValue)) :: Function:
+    let [url.KeyValue(k, v), ...] = f
+    easy.#{form-payload}(PairList[Pair(Symbol.from_string(k), v), ...])
+  fun json(j :: JSON) :: Function:
+    easy.#{json-payload}(j)
+  fun gzip(f :: Function) :: Function:
+    easy.#{gzip-payload}(f)
+  fun pure(inp :: Bytes || String || Port.Input) :: Function:
+    easy.#{pure-payload}(inp)
+  namespace multipart:
+    export:
+      Part
+    class Part(_handle):
+      opaque
+      internal _Part
+      export:
+        field
+        file
+      property handle: _handle
+      constructor ~none
+    fun field(~name: name :: Bytes || String,
+              ~value: value :: Bytes || String,
+              ~content_type: content_type :: Bytes || String = #"text/plain") :: Part:
+      ~name: multipart.Part.field
+      _Part(easy.#{field-part}(name, value, content_type))
+    fun file(~name: name :: Bytes || String,
+             ~in: inp :: Port.Input,
+             ~filename: filename :: Bytes || String = to_string(Port.name(inp)),
+             ~content_type: content_type :: Bytes || String = #"application/octet-stream") :: Part:
+      ~name: multipart.Part.field
+      _Part(name, inp, filename, content_type)
+  fun multipart(~boundary: boundary :: maybe(Bytes || String),
+                f :: multipart.Part, ...) :: Function:
+    if boundary
+    | easy.#{multipart-payload}(f.handle, ..., ~boundary: boundary)
+    | easy.#{multipart-payload}(f.handle, ...)
+    
+
+class PoolConfig(_handle):
+  opaque
+  internal _PoolConfig
+  property handle: _handle
+  constructor (~max_size: max_size :: PosInt || matching(#inf) = 128,
+               ~idle_timeout_seconds: idle_timeout :: maybe(PosReal) = 600):
+    super(easy.#{make-pool-config}(#{#:max-size}: max_size,
+                                   #{#:idle-timeout}: idle_timeout))
+
+class Timeouts(_handle):
+  opaque
+  internal _Timeouts
+  property handle: _handle
+  constructor (~lease: lease :: maybe(PosReal) = 5,
+               ~connect: connect :: maybe(PosReal) = 5,
+               ~request: request :: maybe(PosReal) = 30):
+    super(easy.#{make-timeout-config}(~lease: lease,
+                                      ~connect: connect,
+                                      ~request: request))
+
+class LiteralURL(_handle):
+  opaque
+  internal _LiteralURL
+  private implements Printable
+  property handle: _handle
+  constructor (s :: String):
+    super(easy.#{string->url/literal})
+  method to_string():
+    String.to_string(easy.#{url/literal->string}(_handle))
+  private override describe(mode, recur):
+    if mode == #'text
+    | to_string()
+    | recur(this, ~mode: mode)
+
+Parameter.def current_user_agent :: Bytes || String = easy.#{current-user-agent}()
+
+let header_rx = rx'case_insensitive:
+                     ($name:
+                        [! ":"]*)
+                       ++ ":" blank*
+                       ++ ($val:
+                              any *)'
+
+class Response(_handle):
+  opaque
+  implements Closeable
+  internal _Response
+  constructor ~none
+
+  property handle: _handle
+
+  property status_line :~ Bytes: easy.#{response-status-line}(_handle)
+  property status_code :~ StatusCode: easy.#{response-status-code}(_handle)
+  property status_message :~ Bytes: easy.#{response-status-message}(_handle)
+  property http_version :~ Bytes: easy.#{response-http-version}(_handle)
+  property raw_headers :~ List.of(Bytes): List(& easy.#{response-headers}(_handle))
+
+  method body() :~ Bytes:
+    easy.#{response-body}(_handle)
+  method headers() :~ Map.of(Symbol, String):
+    let hs = raw_headers
+    for Map (bstr in hs):
+      let m = header_rx.match(bstr)
+      skip_when !m
+      values(Symbol.from_string(String.foldcase(Bytes.latin1_string(m!![#'name]))),
+             m!![#'val])
+
+  method history() :~ List.of(Response):
+    let PairList[r, ...] = easy.#{response-history}(_handle)
+    [_Response(r), ...]
+
+  binding:
+    fun (stx):
+      match stx
+      | '$self($(group_option_sequence
+                 | '~status_line: $status_line_bind'
+                 | '~status_code: $status_code_bind'
+                 | '~status_message: $status_message_bind'
+                 | '~http_version: $http_version_bind'
+                 | '~history: $history_bind'
+                 | '~headers: { $(header_key :: Sequence): $header_val,
+                                ...,
+                                & $header_bind, ... ~once }'
+                 | '~body: $body_bind'))':
+          let binds = ''
+          let binds: if status_line_bind
+                     | '$binds
+                        $status_line_bind = r.status_line'
+                     | binds
+          let binds: if status_code_bind
+                     | '$binds
+                        $status_code_bind = r.status_code'
+                     | binds
+          let binds: if status_message_bind
+                     | '$binds
+                        $status_message_bind = r.status_message'
+                     | binds
+          let binds: if http_version_bind
+                     | '$binds
+                        $http_version_bind = r.http_version'
+                     | binds
+          let binds: if history_bind
+                     | '$binds
+                        $http_version_bind = r.http_version'
+                     | binds
+          let binds: if [header_key, ...] != [] || [header_bind, ...] != []
+                     | let header_bind:
+                         match [header_bind, ...]
+                         | []: '_'
+                         | [bind]: bind
+                       '$binds
+                        [($header_val) :~ Bytes, ..., ($header_bind) :~ List.of(Bytes)]:
+                          header_extract($self,
+                                         r.handle,
+                                         $header_key, ...)'
+                     | binds
+          let binds: if body_bind
+                     | '$binds
+                        $body_bind = r.body()'
+                     | binds
+          'r :: _Response where:
+             $binds'
+
+  override method close():
+    easy.#{response-close!}(_handle)
+  method drain():
+    easy.#{response-drain!}(_handle)
+
+expr.macro 'header_extract($who, $hand, $key, ...)':
+  let [key_sym, ...]:
+    for List (key in [key, ...]):
+      match key
+      | '#' $(key :: Identifier)': key
+      | '$(key :: String)': '$(Symbol.from_string(key.unwrap()))'
+      | ~else:
+          syntax_meta.error(~who: who,
+                            "expected an immediate symbol or string expression",
+                            key)
+  let [key_id, ...] = [Syntax.make_temp_id(key_sym), ...]
+  expr_meta.pack_s_exp(['rkt_match',
+                        expr_meta.pack_expr(hand),
+                        [['response', '#{#:headers}',
+                          [[key_sym, key_id],
+                           ...],
+                          'rest'],
+                         expr_meta.pack_expr('[$key_id, ..., rest]')],
+                        [['quote', '#true'],
+                         expr_meta.pack_expr('#false')]])
+
+class Proxy(_handle):
+  opaque
+  internal _Proxy
+  property handle: _handle
+  export:
+    http
+    https
+
+  constructor (~matches: matches :: url.URL -> Boolean,
+               ~connect: connect :: (HTTPConn, url.URL, maybe(SSLContext)) -> Void) :~ Proxy:
+    super(easy.#{make-proxy}(fun (url_handle):
+                               matches(url.URL.from_handle(url_handle)),
+                             fun (conn_handle, url_handle, ssl_context_handle):
+                               connect(conn_handle, url.URL.from_handle(url_handle), ssl_context_handle)))
+
+fun http(~proxy_url: proxy_url :: String || Bytes || url.URL,
+         ~matches: matches :: url.URL -> Boolean = (fun (u :~ url.URL):
+                                                      u.scheme == "http")) :~ Proxy:
+  ~name: Proxy.http
+  _Proxy(easy.#{make-http-proxy}(proxy_url,
+                                 fun (url_handle):
+                                   matches(url.URL.from_handle(url_handle))))
+
+fun https(~proxy_url: proxy_url :: String || Bytes || url.URL,
+          ~matches: matches :: url.URL -> Boolean = (fun (u :~ url.URL):
+                                                       u.scheme == "https")) :~ Proxy:
+  ~name: Proxy.https
+  _Proxy(easy.#{make-http-proxy}(proxy_url,
+                                 fun (url_handle):
+                                   matches(url.URL.from_handle(url_handle))))
+
+class Session(_handle):
+  opaque
+  implements Closeable
+  internal _Session
+  property handle: _handle
+  constructor (~pool_config: pool_config :: PoolConfig = PoolConfig(),
+               ~ssl_context: ssl_context,
+               ~cookie_jar: cookie_jar,
+               ~proxies: proxies :: List.of(Proxy)):
+    super(easy.#{make-session}(#{#:pool-config}: pool_config.handle,
+                               #{#:ssl-context}: ssl_context,
+                               #{#:cookie-jar}: cookie_jar,
+                               ~proxies: PairList(& proxies)))
+  override method close():
+    easy.#{session-close!}(_handle)
+  export:
+    rename:
+      current_session as current
+
+  method request(uri :: Bytes || String || url.URL || LiteralURL,
+                 ~method: method :: Method = #'get,
+                 ~close: close :: Any.to_boolean = #false,
+                 ~stream: stream :: Any.to_boolean = #false,
+                 ~headers: headers :: Headers = {},
+                 ~params: params :: List.of(url.KeyValue) = [],
+                 ~auth: auth :: maybe(auth.Function) = #false,         
+                 ~data: data :: maybe(Bytes || String || Port.Input || payload.Function) = #false,
+                 ~timeouts: timeouts :: Timeouts = Timeouts(),
+                 ~max_attempts: max_attempts :: PosInt = 3,
+                 ~max_redirects: max_redirects :: PosInt = 16,
+                 ~user_agent: user_agent :: Bytes || String = current_user_agent()) :~ Response:
+    let [url.KeyValue(k, v), ...] = params
+    _Response(easy.#{session-request}(handle,
+                                      uri,
+                                      ~method: method,
+                                      #{#:close?}: close,
+                                      #{#:stream?}: stream,
+                                      ~headers: headers,
+                                      ~params: PairList[Pair(Symbol.from_string(k), v), ...],
+                                      ~auth: auth && (fun (url_handle, PairList[Pair(k, v), ...]):
+                                                        auth(url.URL.from_handle(url_handle), [[k, v], ...])),
+                                      ~data: data,
+                                      ~timeouts: timeouts.handle,
+                                      #{#:max-attempts}: max_attempts,
+                                      #{#:max-redirects}: max_redirects,
+                                      #{#:user-agent}: user_agent))
+
+
+Parameter.def current_session :: Session:
+  ~name: Session.current
+  _Session(easy.#{current-session}())
+
+defn.macro 'def_method $name':
+  'fun $name(uri :: Bytes || String || url.URL || LiteralURL,
+             ~session: session :: Session = Session.current(),
+             ~method: method :: Method = #'get,
+             ~close: close :: Any.to_boolean = #false,
+             ~stream: stream :: Any.to_boolean = #false,
+             ~headers: headers :: Headers = {},
+             ~params: params :: List.of(url.KeyValue) = [],
+             ~auth: auth :: maybe(auth.Function) = #false,         
+             ~data: data :: maybe(Bytes || String || Port.Input || payload.Function) = #false,
+             ~timeouts: timeouts :: Timeouts = Timeouts(),
+             ~max_attempts: max_attempts :: PosInt = 3,
+             ~max_redirects: max_redirects :: PosInt = 16,
+             ~user_agent: user_agent :: Bytes || String = current_user_agent()) :~ Response:
+     session.request(uri,
+                     ~method: #' $name,
+                     ~close: close,
+                     ~stream: stream,
+                     ~headers: headers,
+                     ~params: params,
+                     ~auth: auth,
+                     ~data: data,
+                     ~timeouts: timeouts,
+                     ~max_attempts: max_attempts,
+                     ~max_redirects: max_redirects,
+                     ~user_agent: user_agent)'
+
+def_method get
+def_method post
+def_method delete
+def_method head
+def_method options
+def_method patch
+def_method put
+
+veneer Exn.Fail.HTTP(this :: satisfying(easy.#{exn:fail:http-easy?})):
+  export:
+    Timeout
+  veneer Timeout(this :: satisfying(easy.#{exn:fail:http-easy:timeout?})):
+    property kind :~ Symbol: easy.#{exn:fail:http-easy:timeout-kind}(this)
+
+#//
+module main:
+  match get("http://www.cs.utah.edu")
+  | Response(~status_line: stat,
+             ~http_version: vers,
+             ~headers: { #'date: d,
+                         & remain },
+             ~body: body):
+      [stat, vers, d]
