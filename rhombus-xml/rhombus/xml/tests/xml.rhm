@@ -1,0 +1,135 @@
+#lang rhombus
+import:
+  xml
+
+fun
+| no_srcloc(g :: Syntax):
+    Syntax.make_group(g.unwrap_all().rest)
+| no_srcloc(xml.Document(~prolog: xml.Prolog(~pre_misc: [pre_misc, ...],
+                                             ~dtd: dtd,
+                                             ~post_misc: [post_misc, ...]),
+                         ~element: e,
+                         ~misc: [misc, ...])):
+    xml.Document(~prolog: xml.Prolog(~pre_misc: [no_srcloc(pre_misc), ...],
+                                     ~post_misc: [no_srcloc(post_misc), ...]),
+                 ~element: no_srcloc(e),
+                 ~misc: [no_srcloc(misc), ...])
+| no_srcloc(xml.Element(~srcloc: _,
+                        ~name: name,
+                        ~attributes: [attr, ...],
+                        ~content: [c, ...])):
+    xml.Element(~name: name,
+                ~attributes: [no_srcloc(attr), ...],
+                ~content: [no_srcloc(c), ...])
+| no_srcloc(s :: xml.Sourced):
+    s with (srcloc = #false)
+
+def hi = xml.PCData(~text: "hi")
+check hi.text ~is "hi"
+check hi ~is_a xml.Content
+
+def e = xml.Element(~name: "demo",
+                    ~content: [hi])
+check e ~is_a xml.Content
+check xml.from_syntax(xml.to_syntax(e)).element ~is e
+
+check xml.to_syntax(e) ~matches 'demo: "hi"'
+check xml.from_syntax(no_srcloc('demo: "hi"')).element ~is e
+
+def d = xml.Document(~element: e)
+check d.element ~is e
+check xml.from_syntax(xml.to_syntax(d)) ~is d
+
+block:
+  def ent = xml.Entity(~text: "amp")
+  check ent.text ~is "amp"
+  check ent ~is_a xml.Content
+
+  check: xml.to_syntax(xml.Element(~name: "demo", ~content: [ent]))
+         ~matches 'demo: &amp'
+  check: xml.from_syntax(no_srcloc('demo: &amp')).element
+         ~is xml.Element(~name: "demo", ~content: [ent])
+
+block:
+  def ent = xml.Entity(~text: 1234)
+  check ent.text ~is 1234
+  check ent ~is_a xml.Content
+
+  check: xml.to_syntax(xml.Element(~name: "demo", ~content: [ent]))
+         ~matches 'demo: &1234'
+  check: xml.from_syntax(no_srcloc('demo: &1234')).element
+         ~is xml.Element(~name: "demo", ~content: [ent])
+
+def cdata = xml.CData(~text: "cowbell")
+check cdata.text ~is "cowbell"
+
+def verb = xml.Verbatim(~text: "broken]]>")
+check verb.text ~is "broken]]>"
+
+def cmt = xml.Comment(~text: "more cowbell")
+check cmt.text ~is "more cowbell"
+
+block:
+  let doc = xml.Document(~element:
+                           xml.Element(~name: "doc",
+                                       ~content:
+                                         [cdata, verb, cmt]))
+  check xml.from_syntax(xml.to_syntax(doc)) ~is doc
+
+check:
+  xml.to_string(xml.Document(~element:
+                               xml.Element(~name: "doc",
+                                           ~content:
+                                             [cdata,
+                                              xml.PCData(~text: "moo"),
+                                              cmt,
+                                              verb])))
+  ~matches "<doc><![CDATA[cowbell]]>moo<!--more cowbell-->broken]]></doc>"
+
+check: xml.write_syntax('demo:
+                           "hello" &lt
+                           "world" &gt')
+       ~prints "<demo>hello&lt;world&gt;</demo>"
+check: xml.syntax_to_string('demo:
+                               "hello" &lt
+                               "world" &gt')
+       ~is "<demo>hello&lt;world&gt;</demo>"
+check: xml.syntax_from_string("<demo>hello&lt;world&gt;</demo>")
+       ~matches 'demo:
+                   "hello"
+                   "<"
+                   "world"
+                   ">"'
+check: xml.syntax_to_string(xml.syntax_from_string("<demo>hello&lt;world&gt;</demo>"))
+       ~is "<demo>hello&lt;world&gt;</demo>"
+check: xml.syntax_to_bytes(xml.syntax_from_bytes(#"<demo>hello&lt;world&gt;</demo>"))
+       ~is_now #"<demo>hello&lt;world&gt;</demo>"
+check: xml.to_bytes(xml.from_bytes(#"<demo>hello&lt;world&gt;</demo>"))
+       ~is_now #"<demo>hello&lt;world&gt;</demo>"
+
+check:
+  no_srcloc(xml.from_string("<doc><![CDATA[cowbell]]>moo<!--more cowbell--></doc>"))
+  ~is xml.Document(~element:
+                     xml.Element(~name: "doc",
+                                 ~content:
+                                   [cdata,
+                                    xml.PCData(~text: "moo")]))
+
+check: xml.current_permissive() ~is #false
+check: #'oops is_a xml.OtherPermitted ~is #false
+check: xml.Element(~name: "doc", ~content: [#'oops])
+       ~throws values(error.annot_msg())
+check:
+  parameterize { xml.current_permissive: #true }:
+    #'oops is_a xml.OtherPermitted
+  ~is #true
+
+check:
+  parameterize { xml.current_permissive: #true }:
+    xml.Element(~name: "doc", ~content: [#'oops])
+  ~is_a xml.Element
+
+check:
+  xml.to_syntax(parameterize { xml.current_permissive: #true }:             
+                  xml.Element(~name: "doc", ~content: [#'oops]))
+  ~matches 'doc: oops'
