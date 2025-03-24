@@ -1,0 +1,102 @@
+#lang rhombus/static/and_meta
+import:
+  lib("xml/main.rkt") as rkt
+  "class.rhm" open
+
+export:
+  to_rhm
+
+fun to_rhm(doc):
+  let PairList[misc, ...] = rkt.#{document-misc}(doc)
+  Document(~prolog: prolog_to_rhm(rkt.#{document-prolog}(doc)),
+           ~element: element_to_rhm(rkt.#{document-element}(doc)),
+           ~misc: [misc_to_rhm(misc), ...])
+
+fun prolog_to_rhm(prolog):
+  let PairList[pre_misc, ...] = rkt.#{prolog-misc}(prolog)
+  let dtd = rkt.#{prolog-dtd}(prolog)
+  let PairList[post_misc, ...] = rkt.#{prolog-misc2}(prolog)
+  Prolog(~pre_misc: [misc_to_rhm(pre_misc), ...],
+         ~dtd: dtd && DTD(~name: rkt.#{document-type-name}(dtd),
+                          ~system: to_string(rkt.#{external-dtd-system}(dtd)),
+                          ~public:
+                            let pub = rkt.#{external-dtd/public?}(dtd) && rkt.#{external-dtd/public-public}(dtd)
+                            pub && to_string(pub)),
+         ~post_misc: [misc_to_rhm(post_misc), ...])
+
+fun element_to_rhm(e):
+  let PairList[attr, ...] = rkt.#{element-attributes}(e) 
+  let PairList[content, ...] = rkt.#{element-content}(e) 
+  Element(~srcloc: source_to_rhm(e),
+          ~name: to_string(rkt.#{element-name}(e)),
+          ~attributes: [attribute_to_rhm(attr), ...],
+          ~content: [content_to_rhm(content), ...])
+
+fun content_to_rhm(c):
+  cond
+  | rkt.#{element?}(c):
+      element_to_rhm(c)
+  | rkt.#{entity?}(c):
+      entity_to_rhm(c)
+  | rkt.#{pcdata?}(c):
+      pcdata_to_rhm(c)
+  | rkt.#{cdata?}(c):
+      cdata_to_rhm(c)
+  | rkt.#{comment?}(c):
+      comment_to_rhm(c)
+  | rkt.#{p-i?}(c):
+      p_i_to_rhm(c)
+  | ~else:
+      // permissive mode
+      c
+
+fun misc_to_rhm(misc):
+  cond
+  | rkt.#{comment?}(misc):
+      comment_to_rhm(misc)
+  | rkt.#{p-i?}(misc):
+      p_i_to_rhm(misc)
+
+fun pcdata_to_rhm(pc):
+  PCData(~srcloc: source_to_rhm(pc),
+         ~text: to_string(rkt.#{pcdata-string}(pc)))
+
+fun cdata_to_rhm(c):
+  CData(~srcloc: source_to_rhm(c),
+        ~text: to_string(rkt.#{cdata-string}(c)))
+
+fun comment_to_rhm(c):
+  Comment(~text: to_string(rkt.#{comment-text}(c)))
+
+fun p_i_to_rhm(pi):
+  ProcessingInstruction(~target_name: to_string(rkt.#{p-i-target-name}(pi)),
+                        ~instruction: to_string(rkt.#{p-i-instruction}(pi)))
+
+fun source_to_rhm(s):
+  let start = rkt.#{source-start}(s)
+  let stop = rkt.#{source-stop}(s)
+  if start is_a Symbol || stop is_a Symbol
+  | #false
+  | SrclocRange(rkt.#{location-line}(start),
+                rkt.#{location-char}(start),
+                rkt.#{location-offset}(start),
+                rkt.#{location-line}(stop) - rkt.#{location-line}(start),
+                rkt.#{location-char}(stop) - rkt.#{location-char}(start),
+                rkt.#{location-offset}(stop) - rkt.#{location-offset}(start))
+
+fun attribute_to_rhm(attr):
+  Attribute(~srcloc: source_to_rhm(attr),
+            ~name: to_string(rkt.#{attribute-name}(attr)),
+            ~value:
+              let v = rkt.#{attribute-value}(attr)
+              if v is_a ReadableString
+              | to_string(v)
+              | v)
+  
+fun entity_to_rhm(e):
+  Entity(~srcloc: source_to_rhm(e),
+         ~text:
+           let v = rkt.#{entity-text}(e)
+           if v is_a Int
+           | v
+           | to_string(v))

@@ -1,0 +1,92 @@
+#lang rhombus/static/and_meta
+import:
+  lib("xml/main.rkt") as rkt
+
+export:
+  Document
+
+  Content
+  Element
+  PCData
+  Entity
+  Misc
+  CData
+  OtherPermitted
+
+  Prolog
+  DTD
+
+  Sourced
+  SrclocRange
+
+  Comment
+  ProcessingInstruction
+  Misc
+
+  Attribute
+
+  EntityInt
+
+class SrclocRange(line :: NonnegInt,
+                  char :: NonnegInt,
+                  offset :: NonnegInt,
+                  line_span :: NonnegInt,
+                  char_span :: NonnegInt,
+                  offset_span :: NonnegInt)
+
+class Sourced(~srcloc: srcloc :: maybe(SrclocRange) = #false):
+  nonfinal
+
+class Comment(~text: text :: String)
+
+class ProcessingInstruction(~target_name: target_name :: String,
+                            ~instruction: instruction :: String):
+  extends Sourced
+
+class DTD(~name: name :: String,
+          ~system: system :: String,
+          ~public: public :: maybe(String) = #false)
+
+annot.macro 'Misc': 'Comment || ProcessingInstruction'
+
+class Prolog(~pre_misc: post_misc :: List.of(Misc) = [],
+             ~dtd: dtd :: maybe(DTD) = #false,
+             ~post_misc: pst_misc :: List.of(Misc) = [])
+
+annot.macro 'OtherPermitted': 'satisfying(fun (v): rkt.#{permissive-xexprs}())'
+
+annot.macro 'Content': 'satisfying(is_content)'
+
+fun is_content(v):
+  v is_a Element
+    || v is_a Entity
+    || v is_a PCData
+    || v is_a CData
+    || v is_a Misc
+    || v is_a OtherPermitted
+
+class Attribute(~name: name :: String,
+                ~value: value :: String || OtherPermitted):
+  extends Sourced
+
+class PCData(~text: text :: String):
+  extends Sourced
+
+class CData(~text: text :: String):
+  extends Sourced
+
+annot.macro 'EntityInt': 'Int.in(1, 0xD7FF)
+                            || Int.in(0xE000, 0xFFFD)
+                            || Int.in(0x10000, 0x10FFFF)'
+
+class Entity(~text: text :: String || EntityInt):
+  extends Sourced
+
+class Element(~name: name :: String,
+              ~attributes: attributes :: List.of(Attribute) = [],
+              ~content: content :: List.of(Content) = []):
+  extends Sourced
+
+class Document(~prolog: prolog :: Prolog = Prolog(),
+               ~element: element :: Element,
+               ~misc: misc :: List.of(Misc) = [])

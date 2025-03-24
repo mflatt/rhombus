@@ -1,0 +1,15 @@
+#lang rhombus/static/and_meta
+import:
+  lib("xml/main.rkt") as rkt
+  "xml/private/class.rhm"
+  "xml/private/to_rhm.rhm" open
+  "xml/private/to_rkt.rhm" open
+
+export:
+  all_from(.class)
+
+namespace xml:
+  export:
+    read
+  fun read(~in: inp :: Port.Input = Port.Input.current()):
+    to_rhm(rkt.#{read-xml}(inp))
