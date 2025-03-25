@@ -1,3 +1,3 @@
 #lang info
 
-(define scribblings '(("scribblings/rhombus-xml.scrbl" ())))
+(define scribblings '(("scribblings/rhombus-xml.scrbl"  (multi-page))))

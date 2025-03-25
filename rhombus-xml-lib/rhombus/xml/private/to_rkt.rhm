@@ -89,9 +89,10 @@ fun p_i_to_rkt(ProcessingInstruction(~srcloc: srcloc, ~target_name: tn, ~instruc
 fun srcloc_to_rkt(s):
   match s
   | #false: values(#'rhombus, #'rhombus)
-  | SrclocRange(line, char, offset, line_span, char_span, offset_span):
-      values(rkt.location(line, char, offset),
-             rkt.location(line + line_span, char + char_span, offset + offset_span))
+  | SrclocRange(Srcloc(_, start_line, start_col, start_offset, _),
+                Srcloc(_, end_line, end_col, end_offset, _)):
+      values(rkt.location(start_line, start_col, start_offset),
+             rkt.location(end_line, end_col, end_offset))
 
 fun attribute_to_rkt(Attribute(~srcloc: srcloc,
                                ~name: name,

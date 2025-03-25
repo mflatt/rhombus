@@ -7,7 +7,7 @@ export:
   to_syntax
 
 fun to_syntax(xml :: Document || Element,
-              ~swap_underscore_dash: swap = #true,
+              ~swap_underscore_dash: swap = default_swap,
               ~source: source = #false):
   ~name: xml.to_xstx
   ~who: who
@@ -24,8 +24,8 @@ fun build_name(str :: String, swap):
 
 fun at(v, srcloc, source):
   match srcloc
-  | SrclocRange(line, char, offset, line_span, char_span, offset_span):
-      Syntax.make(v).relocate(Srcloc(source, line, #false, char + 1, char_span))
+  | SrclocRange(Srcloc(_, line, col, offset, span), _):
+      Syntax.make(v).relocate(Srcloc(source, line, col, offset, span))
   | ~else:
       v
 

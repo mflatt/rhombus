@@ -16,7 +16,6 @@ export:
   Prolog
   DTD
 
-  Sourced
   SrclocRange
 
   Comment
@@ -29,21 +28,14 @@ export:
 
   current_permissive
 
-class SrclocRange(line :: NonnegInt,
-                  char :: NonnegInt,
-                  offset :: NonnegInt,
-                  line_span :: NonnegInt,
-                  char_span :: NonnegInt,
-                  offset_span :: NonnegInt)
-
-class Sourced(~srcloc: srcloc :: maybe(SrclocRange) = #false):
-  nonfinal
+class SrclocRange(start :: Srcloc,
+                  end :: Srcloc)
 
 class Comment(~text: text :: String)
 
 class ProcessingInstruction(~target_name: target_name :: String,
-                            ~instruction: instruction :: String):
-  extends Sourced
+                            ~instruction: instruction :: String,
+                            ~srcloc: srcloc :: maybe(SrclocRange) = #false)
 
 class DTD(~name: name :: String,
           ~system: system :: String,
@@ -71,29 +63,29 @@ fun is_content(v):
     || v is_a OtherPermitted
 
 class Attribute(~name: name :: String,
-                ~value: value :: String || OtherPermitted):
-  extends Sourced
+                ~value: value :: String || OtherPermitted,
+                ~srcloc: srcloc :: maybe(SrclocRange) = #false)
 
-class PCData(~text: text :: String):
-  extends Sourced
+class PCData(~text: text :: String,
+             ~srcloc: srcloc :: maybe(SrclocRange) = #false)
 
-class CData(~text: text :: String && !satisfying(String.contains(_, "]]>"))):
-  extends Sourced
+class CData(~text: text :: String && !satisfying(String.contains(_, "]]>")),
+            ~srcloc: srcloc :: maybe(SrclocRange) = #false)
 
-class Verbatim(~text: text :: String):
-  extends Sourced
+class Verbatim(~text: text :: String,
+               ~srcloc: srcloc :: maybe(SrclocRange) = #false)
 
 annot.macro 'EntityInt': 'Int.in(1, 0xD7FF)
                             || Int.in(0xE000, 0xFFFD)
                             || Int.in(0x10000, 0x10FFFF)'
 
-class Entity(~text: text :: String || EntityInt):
-  extends Sourced
+class Entity(~text: text :: String || EntityInt,
+             ~srcloc: srcloc :: maybe(SrclocRange) = #false)             
 
 class Element(~name: name :: String,
               ~attributes: attributes :: List.of(Attribute) = [],
-              ~content: content :: List.of(Content) = []):
-  extends Sourced
+              ~content: content :: List.of(Content) = [],
+              ~srcloc: srcloc :: maybe(SrclocRange) = #false)
 
 class Document(~prolog: prolog :: Prolog = Prolog(),
                ~element: element :: Element,

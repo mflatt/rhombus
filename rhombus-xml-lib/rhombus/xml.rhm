@@ -9,6 +9,7 @@ import:
   "xml/private/to_rkt.rhm" open
   "xml/private/to_xstx.rhm" open
   "xml/private/from_xstx.rhm" open
+  "xml/private/swap.rhm" open
 
 export:
   all_from(.class)
@@ -21,8 +22,8 @@ namespace xml:
     from_string
     from_bytes
     read_syntax
-    syntax_from_string
-    syntax_from_bytes
+    string_to_syntax
+    bytes_to_syntax
 
     write
     to_string
@@ -37,6 +38,9 @@ namespace xml:
     current_read_count_bytes
     current_read_collapse_whitespace
     current_write_empty_shorthand
+
+    doc
+    syntax
 
   fun read(~in: inp :: Port.Input = Port.Input.current(),
            ~read_post_misc: read_post_misc = #true)
@@ -58,7 +62,7 @@ namespace xml:
     :~ Document:
       read(~in: Port.Input.open_string(str))
 
-  fun syntax_from_string(str :: String)
+  fun string_to_syntax(str :: String)
     :~ Document:
       to_syntax(read(~in: Port.Input.open_string(str)))
 
@@ -66,7 +70,7 @@ namespace xml:
     :~ Document:
       read(~in: Port.Input.open_bytes(bstr))
 
-  fun syntax_from_bytes(bstr :: Bytes)
+  fun bytes_to_syntax(bstr :: Bytes)
     :~ Document:
       to_syntax(read(~in: Port.Input.open_bytes(bstr)))
 
@@ -89,7 +93,7 @@ namespace xml:
                                    ~indentation: indentation)
 
   fun write_syntax(xstx :: Syntax,
-                   ~swap_underscore_dash: swap = #true,
+                   ~swap_underscore_dash: swap = default_swap,
                    ~out: outp :: Port.Output = Port.Output.current(),
                    ~indentation: indentation :: Indentation = #'none):
     ~who: who
@@ -120,7 +124,7 @@ namespace xml:
 
   fun syntax_to_string(xstx :: Syntax,
                        ~indentation: indentation :: Indentation = #'none,
-                       ~swap_underscore_dash: swap = #true)
+                       ~swap_underscore_dash: swap = default_swap)
     :~ String:
       ~who: who
       let doc = _from_syntax(~who: who,
@@ -131,7 +135,7 @@ namespace xml:
 
   fun syntax_to_bytes(xstx :: Syntax,
                       ~indentation: indentation :: Indentation = #'none,
-                      ~swap_underscore_dash: swap = #true)
+                      ~swap_underscore_dash: swap = default_swap)
     :~ Bytes:
       ~who: who
       let doc = _from_syntax(~who: who,
@@ -144,6 +148,28 @@ namespace xml:
   Parameter.def current_read_count_bytes :: Any.to_boolean = #false
   Parameter.def current_read_collapse_whitespace :: Any.to_boolean = #false
   Parameter.def current_write_empty_shorthand :: Any.to_boolean = #false
+
+  expr.macro 'doc:
+                $(group_option_sequence
+                  | '~swap_underscore_dash: $do_swap')
+                $content
+                ...':
+    ~op_stx: who
+    '«to_doc('$who', '$content; ...', $(do_swap || 'default_swap'))»'
+
+  expr.macro 'syntax: $content':
+    ~op_stx: who
+    '«check_syntax('$who', '$content')»'
+
+  fun to_doc(who, xstx, swap):
+    _from_syntax(~who: who,
+                 xstx,
+                 ~swap_underscore_dash: swap)
+  
+  fun check_syntax(who, xstx):
+    // ignoring result:
+    to_doc(who, xstx, #false)
+    xstx
 
 export:
   all_from(.xml)

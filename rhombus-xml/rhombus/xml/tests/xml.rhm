@@ -2,27 +2,36 @@
 import:
   xml
 
-fun
-| no_srcloc(g :: Syntax):
-    Syntax.make_group(g.unwrap_all().rest)
-| no_srcloc(xml.Document(~prolog: xml.Prolog(~pre_misc: [pre_misc, ...],
-                                             ~dtd: dtd,
-                                             ~post_misc: [post_misc, ...]),
-                         ~element: e,
-                         ~misc: [misc, ...])):
-    xml.Document(~prolog: xml.Prolog(~pre_misc: [no_srcloc(pre_misc), ...],
-                                     ~post_misc: [no_srcloc(post_misc), ...]),
-                 ~element: no_srcloc(e),
-                 ~misc: [no_srcloc(misc), ...])
-| no_srcloc(xml.Element(~srcloc: _,
-                        ~name: name,
-                        ~attributes: [attr, ...],
-                        ~content: [c, ...])):
-    xml.Element(~name: name,
-                ~attributes: [no_srcloc(attr), ...],
-                ~content: [no_srcloc(c), ...])
-| no_srcloc(s :: xml.Sourced):
-    s with (srcloc = #false)
+fun no_srcloc(v):
+  match v
+  | g :: Syntax:
+      Syntax.make_group(g.unwrap_all().rest)
+  | xml.Document(~prolog: xml.Prolog(~pre_misc: [pre_misc, ...],
+                                     ~dtd: dtd,
+                                     ~post_misc: [post_misc, ...]),
+                 ~element: e,
+                 ~misc: [misc, ...]):
+      xml.Document(~prolog: xml.Prolog(~pre_misc: [no_srcloc(pre_misc), ...],
+                                       ~post_misc: [no_srcloc(post_misc), ...]),
+                   ~element: no_srcloc(e),
+                   ~misc: [no_srcloc(misc), ...])
+  | xml.Element(~srcloc: _,
+                ~name: name,
+                ~attributes: [attr, ...],
+                ~content: [c, ...]):
+      xml.Element(~name: name,
+                  ~attributes: [no_srcloc(attr), ...],
+                  ~content: [no_srcloc(c), ...])
+  | pc :: xml.PCData:
+      pc with (srcloc = #false)
+  | e :: xml.Entity:
+      e with (srcloc = #false)
+  | c :: xml.CData:
+      c with (srcloc = #false)
+  | v :: xml.Verbatim:
+      v with (srcloc = #false)
+  | a :: xml.Attribute:
+      a with (srcloc = #false)
 
 def hi = xml.PCData(~text: "hi")
 check hi.text ~is "hi"
@@ -39,6 +48,47 @@ check xml.from_syntax(no_srcloc('demo: "hi"')).element ~is e
 def d = xml.Document(~element: e)
 check d.element ~is e
 check xml.from_syntax(xml.to_syntax(d)) ~is d
+
+check:
+  xml.syntax:
+    greeting:
+      "hi"
+  ~matches 'greeting: "hi"'
+
+check:
+  no_srcloc(xml.doc:
+              demo:
+                "hi")
+  ~is d
+
+check:
+  xml.syntax:
+    greeting:
+      $("hi" ++ " " ++ "there")
+  ~matches 'greeting: "hi there"'
+
+check:
+  no_srcloc(xml.doc:
+              demo_tag:
+                ~#{attr-name}: "yes"
+                "hi")
+  ~is xml.Document(~element:
+                     xml.Element(~name: "demo_tag",
+                                 ~attributes: [xml.Attribute(~name: "attr-name",
+                                                             ~value: "yes")],
+                                 ~content: [xml.PCData(~text: "hi")]))
+
+check:
+  no_srcloc(xml.doc:
+              ~swap_underscore_dash: #true
+              demo_tag:
+                ~#{attr-name}: "yes"
+                "hi")
+  ~is xml.Document(~element:
+                     xml.Element(~name: "demo-tag",
+                                 ~attributes: [xml.Attribute(~name: "attr_name",
+                                                             ~value: "yes")],
+                                 ~content: [xml.PCData(~text: "hi")]))
 
 block:
   def ent = xml.Entity(~text: "amp")
@@ -94,15 +144,15 @@ check: xml.syntax_to_string('demo:
                                "hello" &lt
                                "world" &gt')
        ~is "<demo>hello&lt;world&gt;</demo>"
-check: xml.syntax_from_string("<demo>hello&lt;world&gt;</demo>")
+check: xml.string_to_syntax("<demo>hello&lt;world&gt;</demo>")
        ~matches 'demo:
                    "hello"
                    "<"
                    "world"
                    ">"'
-check: xml.syntax_to_string(xml.syntax_from_string("<demo>hello&lt;world&gt;</demo>"))
+check: xml.syntax_to_string(xml.string_to_syntax("<demo>hello&lt;world&gt;</demo>"))
        ~is "<demo>hello&lt;world&gt;</demo>"
-check: xml.syntax_to_bytes(xml.syntax_from_bytes(#"<demo>hello&lt;world&gt;</demo>"))
+check: xml.syntax_to_bytes(xml.bytes_to_syntax(#"<demo>hello&lt;world&gt;</demo>"))
        ~is_now #"<demo>hello&lt;world&gt;</demo>"
 check: xml.to_bytes(xml.from_bytes(#"<demo>hello&lt;world&gt;</demo>"))
        ~is_now #"<demo>hello&lt;world&gt;</demo>"
@@ -133,3 +183,12 @@ check:
   xml.to_syntax(parameterize { xml.current_permissive: #true }:             
                   xml.Element(~name: "doc", ~content: [#'oops]))
   ~matches 'doc: oops'
+
+check:
+  match xml.string_to_syntax("<a>\n <b/>\n</a>")
+  | '$a:
+       $_
+       $b
+       $_':
+      [a.srcloc(), b.srcloc()]
+  ~is [Srcloc(#false, 1, 0, 1, 14), Srcloc(#false, 2, 1, 6, 4)]

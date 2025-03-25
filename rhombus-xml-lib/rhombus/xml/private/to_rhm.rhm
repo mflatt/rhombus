@@ -88,12 +88,16 @@ fun source_to_rhm(s):
   let stop = rkt.#{source-stop}(s)
   if start is_a Symbol || stop is_a Symbol
   | #false
-  | SrclocRange(rkt.#{location-line}(start),
-                rkt.#{location-char}(start),
-                rkt.#{location-offset}(start),
-                rkt.#{location-line}(stop) - rkt.#{location-line}(start),
-                rkt.#{location-char}(stop) - rkt.#{location-char}(start),
-                rkt.#{location-offset}(stop) - rkt.#{location-offset}(start))
+  | SrclocRange(Srcloc(#false,
+                       rkt.#{location-line}(start),
+                       rkt.#{location-char}(start),
+                       rkt.#{location-offset}(start),
+                       rkt.#{location-offset}(stop) - rkt.#{location-offset}(start)),
+                Srcloc(#false,
+                       rkt.#{location-line}(stop),
+                       rkt.#{location-char}(stop),
+                       rkt.#{location-offset}(stop),
+                       #false))
 
 fun attribute_to_rhm(attr):
   Attribute(~srcloc: source_to_rhm(attr),

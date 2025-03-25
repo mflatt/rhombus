@@ -8,14 +8,14 @@ export:
   _from_syntax
 
 fun from_syntax(xstx :: Syntax,
-                ~swap_underscore_dash: swap = #true):
+                ~swap_underscore_dash: swap = default_swap):
   ~name: xml.from_xstx
   ~who: who
   Document(~element: element(who, xstx, swap))
 
 fun _from_syntax(~who: who,
                  xstx :: Syntax,
-                 ~swap_underscore_dash: swap = #true):
+                 ~swap_underscore_dash: swap = default_swap):
   Document(~element: element(who, xstx, swap))
 
 fun extract_name(str :: String, swap):
@@ -23,7 +23,7 @@ fun extract_name(str :: String, swap):
   | swap_underscore_dash(str)
   | str
 
-fun element(who, xstx, swap):
+fun element(who, xstx :~ Syntax, swap):
   match xstx
   | '$(name :: Identifier):
        $blk':
@@ -34,7 +34,9 @@ fun element(who, xstx, swap):
               ~content: content)
   | ~else:
       error(~who: who,
-            "invalid xstx",
+            ~exn: Exn.Fail.Annot,
+            ~srcloc: xstx.srcloc(),
+            "invalid XML syntax",
             error.val(xstx))
     
 fun content(who, es, swap, attrs :~ List, cs :~ List):
@@ -45,10 +47,14 @@ fun content(who, es, swap, attrs :~ List, cs :~ List):
      $e; ...':
       unless cs == []
       | error(~who: who,
+              ~exn: Exn.Fail.Annot,
+              ~srcloc: name.srcloc(),            
               "misplaced attribute",
               error.val(name))
       unless rhs.unwrap() is_a (String || OtherPermitted)
       | error(~who: who,
+              ~exn: Exn.Fail.Annot,
+              ~srcloc: rhs.srcloc(),            
               "expected a string for an attribute value",
               error.val(rhs))
       let attr = Attribute(~name: extract_name(to_string(name.unwrap()), swap),
@@ -85,6 +91,8 @@ fun content(who, es, swap, attrs :~ List, cs :~ List):
                 group(g, attrs, cs.add(c))
             | ~else:
                 error(~who: who,
+                      ~srcloc: entity.srcloc(),
+                      ~exn: Exn.Fail.Annot,
                       "invalid entity",
                       error.val(entity))
         | '$(head :: Term) $(g :: Sequence)':            
@@ -103,6 +111,7 @@ fun content(who, es, swap, attrs :~ List, cs :~ List):
 
 fun make_srcloc(s :~ Syntax):
   match s.srcloc()
-  | Srcloc(_, line :: Int, _, pos :: Int, span :: Int):
-      SrclocRange(line, pos - 1, pos - 1, 0, span, span)
+  | srcloc && Srcloc(src, line, col, pos, span):
+      SrclocRange(srcloc,
+                  Srcloc(src, line, col, pos && span && pos + span, #false))
   | else: #false
