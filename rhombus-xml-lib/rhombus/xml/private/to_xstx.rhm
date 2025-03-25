@@ -1,0 +1,47 @@
+#lang rhombus/static/and_meta
+import:
+  "class.rhm" open
+  "swap.rhm" open
+
+export:
+  to_xstx
+
+fun to_xstx(xml :: Document || Element,
+            ~swap_underscore_dash: swap = #true):
+  ~name: xml.to_xstx
+  ~who: who
+  element(match xml
+          | d :: Document: d.element
+          | ~else: xml,
+          swap)
+
+fun build_name(str :: String, swap):
+  if swap
+  | swap_underscore_dash(str)
+  | str
+
+fun element(Element(~srcloc: _,
+                    ~name: name,
+                    ~attributes: [attr, ...],
+                    ~content: [c, ...]),
+            swap):
+  '$(Symbol.from_string(build_name(name, swap))):
+     $(attribute(attr, swap))
+     ...
+     $(content(c, swap))
+     ...'
+
+fun attribute(Attribute(~srcloc: _,
+                        ~name: name,
+                        ~value: value),
+              swap):
+  '$(Keyword.from_string(build_name(name, swap))): $value'
+
+fun content(c, swap):
+  match c
+  | _ :: Element:
+      element(c, swap)
+  | pc :: PCData:
+      pc.text
+  | ~else:
+      c

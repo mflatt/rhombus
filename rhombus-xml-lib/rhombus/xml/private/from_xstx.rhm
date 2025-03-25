@@ -1,0 +1,75 @@
+#lang rhombus/static/and_meta
+import:
+  "class.rhm" open
+  "swap.rhm" open
+
+export:
+  from_xstx
+
+fun from_xstx(xstx :: Syntax,
+              ~swap_underscore_dash: swap = #true):
+  ~name: xml.from_xstx
+  ~who: who
+  Document(~element: element(who, xstx, swap))
+
+fun extract_name(str :: String, swap):
+  if swap
+  | swap_underscore_dash(str)
+  | str
+
+fun element(who, xstx, swap):
+  match xstx
+  | '$(name :: Identifier):
+       $blk':
+      let (attrs, content) = content(who, blk, swap, [], [])
+      Element(~name: extract_name(to_string(name), swap),
+              ~attributes: attrs,
+              ~content: content)
+  | ~else:
+      error(~who: who,
+            "invalid xstx",
+            error.val(xstx))
+    
+fun content(who, es, swap, attrs :~ List, cs :~ List):
+  match es
+  | '':
+      values(attrs, cs)
+  | '$(name :: Keyword): $rhs
+     $e; ...':
+      unless cs == []
+      | error(~who: who,
+              "misplaced attribute",
+              error.val(name))
+      unless rhs.unwrap() is_a String
+      | error(~who: who,
+              "expected a string for an attribute value",
+              error.val(rhs))
+      let attr = Attribute(~name: extract_name(to_string(name.unwrap()), swap),
+                           ~value: rhs.unwrap())
+      content(who, '$e; ...', swap, attrs.add(attr), cs)
+  | '$(name :: Identifier): $blk
+     $e; ...':
+      let (c_attrs, c_cs) = content(who, blk, swap, [], [])
+      let c = Element(~name: extract_name(to_string(name), swap),
+                      ~attributes: c_attrs,
+                      ~content: c_cs)
+      content(who, '$e; ...', swap, attrs, cs.add(c))
+  | '$g
+     $e; ...':
+      let es = '$e; ...'
+      recur group(g = g, attrs :~ List = attrs, cs :~ List = cs):
+        match g
+        | '':
+            content(who, es, swap, attrs, cs)
+        | '$(head :: Term) $(g :: Sequence)':            
+            match head
+            | '$(s :: String)':
+                let c = PCData(~text: s.unwrap())
+                group(g, attrs, cs.add(c))
+            | ~else:
+                let c = head.unwrap()
+                if c is_a Content
+                | group(g, attrs, cs.add(c))
+                | error(~who: who,
+                        "invalid content",
+                        error.val(head))

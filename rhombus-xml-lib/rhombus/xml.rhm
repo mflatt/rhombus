@@ -4,12 +4,19 @@ import:
   "xml/private/class.rhm"
   "xml/private/to_rhm.rhm" open
   "xml/private/to_rkt.rhm" open
+  "xml/private/to_xstx.rhm" open
+  "xml/private/from_xstx.rhm" open
 
 export:
   all_from(.class)
+  to_xstx
+  from_xstx
 
 namespace xml:
   export:
     read
   fun read(~in: inp :: Port.Input = Port.Input.current()):
     to_rhm(rkt.#{read-xml}(inp))
+
+export:
+  all_from(.xml)
