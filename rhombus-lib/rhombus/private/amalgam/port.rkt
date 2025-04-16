@@ -2,6 +2,7 @@
 (require (for-syntax racket/base
                      syntax/parse/pre
                      shrubbery/print)
+         "treelist.rkt"
          racket/private/port
          "../version-case.rkt"
          "expression.rkt"
@@ -25,7 +26,11 @@
          "rename-parameter.rkt"
          "rhombus-primitive.rkt"
          "error-adjust.rkt"
-         "evt.rkt")
+         "evt.rkt"
+         (submod "list.rkt" for-listable)
+         (submod "listable.rkt" for-static-info)
+         (submod "sequenceable.rkt" for-static-info)
+         "printer-property.rkt")
 
 (provide (for-spaces (rhombus/annot
                       rhombus/namespace)
@@ -103,7 +108,9 @@
    [read_bytes_line Port.Input.read_bytes_line]
    [read_string Port.Input.read_string]
    [read_string_to Port.Input.read_string_to]
-   [copy_to Port.Input.copy_to]))
+   [copy_to Port.Input.copy_to]
+   [lines Port.Input.lines]
+   [bytes_lines Port.Input.bytes_lines]))
 
 (define-primitive-class Port.Input.Progress input-progress-port
   #:lift-declaration
@@ -608,10 +615,14 @@
   (unless (input-port? port) (raise-annotation-failure who port "Port.Input"))
   (define mode (->ReadLineMode mode-in))
   (unless mode
-    (check-input-port who port)
     (raise-annotation-failure who mode-in "Port.Input.ReadLineMode"))
   (coerce-read-result
    (read-line port mode)))
+
+(struct lines (seq)
+  #:property prop:Listable (vector (lambda (self) (for/treelist ([l (lines-seq self)]) l)))
+  #:property prop:printer (lambda (self mode recur) "Lines(...)")
+  #:property prop:sequence (lambda (self) (lines-seq self)))
 
 (define/method (Port.Input.read_bytes_line port
                                            #:mode [mode-in 'any])
@@ -619,9 +630,27 @@
   (unless (input-port? port) (raise-annotation-failure who port "Port.Input"))
   (define mode (->ReadLineMode mode-in))
   (unless mode
-    (check-input-port who port)
     (raise-annotation-failure who mode-in "Port.Input.ReadLineMode"))
-  (read-bytes-line port mode))
+  (lines (read-bytes-line port mode)))
+
+(define (port->lines who read-line port mode-in)
+  (check-input-port who port)
+  (define mode (->ReadLineMode mode-in))
+  (unless mode
+    (raise-annotation-failure who mode-in "Port.Input.ReadLineMode"))
+  (lines (in-port (lambda (p) (coerce-read-result (read-line p mode))) port)))
+
+(define/method (Port.Input.lines port
+                                 #:mode [mode-in 'any])
+  #:static-infos ((#%call-result (#,@(get-sequence-static-infos)
+                                  #,@(get-listable-static-infos))))
+  (port->lines who read-line port mode-in))
+
+(define/method (Port.Input.bytes_lines port
+                                       #:mode [mode-in 'any])
+  #:static-infos ((#%call-result (#,@(get-sequence-static-infos)
+                                  #,@(get-listable-static-infos))))
+  (port->lines who read-bytes-line port mode-in))
 
 (define/method (Port.Input.read_string port amt)
   #:primitive (read-string)
