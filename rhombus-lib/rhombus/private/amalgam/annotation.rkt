@@ -11,6 +11,7 @@
                      "keyword-sort.rkt"
                      "macro-result.rkt"
                      "tag.rkt"
+                     "syntax-map.rkt"
                      (for-syntax racket/base))
          "provide.rkt"
          "enforest.rkt"
@@ -131,6 +132,8 @@
       [_ (raise-bad-macro-result (proc-name proc) "annotation" form)]))
 
   (define (shrubbery-tail->string tail) (shrubbery-syntax->string #`(group . #,tail)))
+
+  (void empty-equal_name_and_scopes-map)
 
   (define-rhombus-enforest
     #:enforest enforest-annotation
