@@ -122,7 +122,7 @@
    #f
    `((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (syntax-parse stx
        [(form-id (~and args (_::parens len-g)) . tail)
         (values

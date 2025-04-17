@@ -96,6 +96,7 @@
                  (wrap-class-transformer #'name #'tail-name
                                          (intro annotation-rhs)
                                          #'make-annotation-prefix-operator
+                                         #:extra-args (list #'ctx)
                                          "class"))))])]
        [else
         (make-ann-defs #'name #'name-of #f

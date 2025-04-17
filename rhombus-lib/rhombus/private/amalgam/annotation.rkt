@@ -11,7 +11,7 @@
                      "keyword-sort.rkt"
                      "macro-result.rkt"
                      "tag.rkt"
-                     "syntax-map.rkt"
+                     "annot-context.rkt"
                      (for-syntax racket/base))
          "provide.rkt"
          "enforest.rkt"
@@ -83,8 +83,6 @@
              in-annotation-space
              annot-quote
 
-             check-annotation-result
-
              :annotation
              :annotation-predicate-form
              :annotation-binding-form
@@ -126,18 +124,16 @@
                         "not bound as an annotation"
                         id))
 
-  (define (check-annotation-result form proc)
+  (define (check-annotation-result form proc ctx)
     (syntax-parse (if (syntax? form) form #'#f)
       [(~or* _::annotation-predicate-form _::annotation-binding-form) form]
       [_ (raise-bad-macro-result (proc-name proc) "annotation" form)]))
 
   (define (shrubbery-tail->string tail) (shrubbery-syntax->string #`(group . #,tail)))
 
-  (void empty-equal_name_and_scopes-map)
-
   (define-rhombus-enforest
     #:enforest enforest-annotation
-    #:syntax-class :annotation
+    #:syntax-class (:annotation [ctx empty-annot-context])
     #:infix-more-syntax-class :annotation-infix-op+form+tail
     #:desc "annotation"
     #:operator-desc "annotation operator"
@@ -244,7 +240,7 @@
      #f
      '((default . stronger))
      'macro
-     (lambda (stx)
+     (lambda (stx ctx)
        (when static-only? (check-static stx))
        (define-values (predicate-stx static-infos) (get))
        (define packed (annotation-predicate-form predicate-stx static-infos))
@@ -264,7 +260,7 @@
      #f
      '((default . stronger))
      'macro
-     (lambda (stx)
+     (lambda (stx ctx)
        (when static-only? (check-static stx))
        (define-values (binding-stx body-stx static-infos) (get stx))
        (define packed (annotation-binding-form binding-stx body-stx static-infos))
@@ -405,7 +401,7 @@
        #f
        '((default . stronger))
        'macro
-       (lambda (stx)
+       (lambda (stx ctx)
          (syntax-parse stx
            [(form-id . tail)
             (values (relocate+reraw
@@ -421,7 +417,7 @@
       #f
       '((default . stronger))
       'macro
-      (lambda (stx)
+      (lambda (stx ctx)
         (parse-annotation-of stx
                              predicate-stx (get-static-infos)
                              sub-n kws
@@ -1024,7 +1020,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (syntax-parse stx
        [(form-id (~and args (_::parens arg::binding)) . tail)
         #:with arg-parsed::binding-form #'arg.parsed
@@ -1050,7 +1046,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (syntax-parse stx
        [(form-id (~and args (_::parens pred-g)) . tail)
         (values
@@ -1078,7 +1074,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stxes)
+   (lambda (stxes ctx)
      (syntax-parse stxes
        [(_ kw:keyword . tail)
         (raise-syntax-error #f
@@ -1094,7 +1090,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stxes)
+   (lambda (stxes ctx)
      (syntax-parse stxes
        [(_ (_::parens n-g) . tail)
         (values (annotation-predicate-form
@@ -1130,7 +1126,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stxes)
+   (lambda (stxes ctx)
      (syntax-parse stxes
        #:datum-literals (group)
        [(form-id (~and args (_::parens lo::incl-group hi::incl-group))
@@ -1177,7 +1173,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stxes)
+   (lambda (stxes ctx)
      (syntax-parse stxes
        #:datum-literals (group)
        [(_ (_::parens g ...)

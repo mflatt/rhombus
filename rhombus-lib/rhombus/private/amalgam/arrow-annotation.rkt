@@ -39,7 +39,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stxes)
+   (lambda (stxes ctx)
      (syntax-parse stxes
        [(_ (~and head (_::parens . args)) . tail)
         (let ([args (syntax->list #'args)])
@@ -63,7 +63,7 @@
    #f
    (lambda () `((default . stronger)))
    'macro
-   (lambda (lhs stx)
+   (lambda (lhs stx ctx)
      (arrow-annotation (list (list #f #f #f lhs)) #f #f #f #f lhs stx))
    'right))
 
@@ -321,11 +321,11 @@
         static-infos))
       tail)]))
 
-(define-for-syntax (parse-arrow-all-of stx)
+(define-for-syntax (parse-arrow-all-of stx ctx)
   (syntax-parse stx
     [(form-id (~and args (p-tag::parens in-g ...)) . tail)
      #:with (who-expr (g ...)) (extract-name stx #'(in-g ...))
-     #:with (a::annotation ...) #'(g ...)
+     #:with ((~var a (:annotation ctx)) ...) #'(g ...)
      (define loc (datum->syntax #f (list #'form-id
                                          ;; drop `~name` from reported annotation form
                                          (cons #'p-tag (syntax->list #'(g ...))))))

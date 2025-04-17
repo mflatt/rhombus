@@ -206,7 +206,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (syntax-parse stx
        [(form-id (~and args (_::parens g ...+)) . tail)
         (with-syntax ([(kw ...) (for/list ([g (in-list (syntax->list #'(g ...)))]
@@ -260,8 +260,8 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
-     (parse-arrow-all-of stx))))
+   (lambda (stx ctx)
+     (parse-arrow-all-of stx ctx))))
 
 (define (check-nonneg-int who v)
   (unless (exact-nonnegative-integer? v)

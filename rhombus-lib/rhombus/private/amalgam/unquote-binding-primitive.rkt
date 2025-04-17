@@ -84,7 +84,9 @@
              #:with args #'#f))
   (define (parse-syntax-class-args stx-class rator-in arity-mask class-args auto-args)
     (cond
-      [(not arity-mask)
+      [(or (not arity-mask)
+           (and (bitwise-bit-set? arity-mask 0)
+                (not (syntax-e class-args))))
        (when (syntax-e class-args)
          (raise-syntax-error #f
                              "syntax class does not expect arguments"

@@ -507,7 +507,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (parse-key-comp stx
                      (lambda (stx arg-stxes str mapper)
                        (syntax-parse stx
@@ -671,7 +671,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (parse-key-comp stx
                      (lambda (stx arg-stxes str mapper)
                        (syntax-parse stx
@@ -704,7 +704,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (parse-key-comp stx
                      (lambda (stx arg-stxes str mapper)
                        (syntax-parse stx

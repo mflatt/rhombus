@@ -195,7 +195,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (parse-syntax-of-annotation stx))))
 
 (begin-for-syntax
