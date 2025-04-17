@@ -11,6 +11,7 @@
          (submod "annotation.rkt" for-class)
          "call-result-key.rkt"
          "function-arity-key.rkt"
+         "index-result-key.rkt"
          (submod "bytes.rkt" static-infos)
          (submod "string.rkt" static-infos)
          "static-info.rkt"
@@ -631,7 +632,7 @@
   (define mode (->ReadLineMode mode-in))
   (unless mode
     (raise-annotation-failure who mode-in "Port.Input.ReadLineMode"))
-  (lines (read-bytes-line port mode)))
+  (read-bytes-line port mode))
 
 (define (port->lines who read-line port mode-in)
   (check-input-port who port)
@@ -643,13 +644,15 @@
 (define/method (Port.Input.lines port
                                  #:mode [mode-in 'any])
   #:static-infos ((#%call-result (#,@(get-sequence-static-infos)
-                                  #,@(get-listable-static-infos))))
+                                  #,@(get-listable-static-infos)
+                                  (#%index-result #,(get-string-static-infos)))))
   (port->lines who read-line port mode-in))
 
 (define/method (Port.Input.bytes_lines port
                                        #:mode [mode-in 'any])
   #:static-infos ((#%call-result (#,@(get-sequence-static-infos)
-                                  #,@(get-listable-static-infos))))
+                                  #,@(get-listable-static-infos)
+                                  (#%index-result #,(get-bytes-static-infos)))))
   (port->lines who read-bytes-line port mode-in))
 
 (define/method (Port.Input.read_string port amt)

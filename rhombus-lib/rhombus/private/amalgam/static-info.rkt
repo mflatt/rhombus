@@ -41,6 +41,7 @@
            static-infos-result-or
            static-infos-result-and
            static-infos-remove
+           get-dependent-result-proc
            get-empty-static-infos))
 
 (provide define-static-info-getter
@@ -384,9 +385,10 @@
      (syntax-parse bs
        [(#:at_arities (b-mask b-results) ...)
         (if (equal? (syntax->datum #'(a-mask ...)) (syntax->datum #'(b-mask ...)))
-            #`(#:at_arities #,(for/list ([a-results (in-list (syntax->list #'(a-results ...)))]
+            #`(#:at_arities #,(for/list ([a-mask (in-list (syntax->list #'(a-mask ...)))]
+                                         [a-results (in-list (syntax->list #'(a-results ...)))]
                                          [b-results (in-list (syntax->list #'(b-results ...)))])
-                                (static-infos-and a-results b-results)))
+                                #`(,a-mask #,(static-infos-maybe-dependent-result-and a-results b-results))))
             as)]
        [_
         as])]
@@ -394,7 +396,7 @@
      (syntax-parse bs
        [(#:at_arities (b-mask b-results) ...)
         as]
-       [_ (static-infos-and as bs)])]))
+       [_ (static-infos-maybe-dependent-result-and as bs)])]))
 
 (define-for-syntax (static-infos-result-or as bs)
   ;; With `#:at_arities`, for now, we handle only the simple case that the masks coincide
@@ -403,9 +405,10 @@
      (syntax-parse bs
        [(#:at_arities (b-mask b-results) ...)
         (if (equal? (syntax->datum #'(a-mask ...)) (syntax->datum #'(b-mask ...)))
-            #`(#:at_arities #,(for/list ([a-results (in-list (syntax->list #'(a-results ...)))]
+            #`(#:at_arities #,(for/list ([a-mask (in-list (syntax->list #'(a-mask ...)))]
+                                         [a-results (in-list (syntax->list #'(a-results ...)))]
                                          [b-results (in-list (syntax->list #'(b-results ...)))])
-                                (static-infos-or a-results b-results)))
+                                #`(#,a-mask #,(static-infos-maybe-dependent-result-or a-results b-results))))
             #f)]
        [_
         #f])]
@@ -413,7 +416,70 @@
      (syntax-parse bs
        [(#:at_arities (b-mask b-results) ...)
         #f]
-       [_ (static-infos-or as bs)])]))
+       [_ (static-infos-maybe-dependent-result-or as bs)])]))
+
+(define-for-syntax (merge-dependent-results as bs merge-dependent-id merge)
+  (syntax-parse as
+    #:literals (#%dependent-result)
+    [((#%dependent-result a-clos))
+     (syntax-parse bs
+       #:literals (#%dependent-result)
+       [((#%dependent-result b-clos))
+        #`((#%dependent-result (#,merge-dependent-id (a-clos b-clos))))]
+       [_
+        #`((#%dependent-result (#,merge-dependent-id (a-clos (independent #,bs)))))])]
+    [_
+     (syntax-parse bs
+       #:literals (#%dependent-result)
+       [((#%dependent-result b-clos))
+        #`((#%dependent-result (#,merge-dependent-id ((independent #,as) b-clos))))]
+       [_ (merge as bs)])]))
+
+(define-for-syntax (static-infos-maybe-dependent-result-and as bs)
+  (merge-dependent-results as bs #'merge-dependent-and static-infos-and))
+
+(define-for-syntax (static-infos-maybe-dependent-result-or as bs)
+  (merge-dependent-results as bs #'merge-dependent-or static-infos-or))
+
+(define-syntax independent
+  (lambda (data args kw-args rest? kw-rest?)
+    data))
+
+(define-for-syntax (get-dependent-result-proc id)
+  (define proc (syntax-local-value* id (lambda (v)
+                                         (and (procedure? v)
+                                              v))))
+  (unless proc
+    (raise-syntax-error #f
+                        "cannot find a transformer for a dependent result"
+                        proc))
+  proc)
+
+(define-syntax merge-dependent-and
+  (lambda (data args kw-args rest? kw-rest?)
+    (syntax-parse data
+      [((a-proc-id a-data) (b-proc b-data))
+       (define a-proc (get-dependent-result-proc #'a-proc-id))
+       (define b-proc (get-dependent-result-proc #'b-proc-id))
+       (static-infos-and (a-proc #'a-data args kw-args rest? kw-rest?) (b-proc #'b-data args kw-args rest? kw-rest?))])))
+
+(define-syntax merge-dependent-or
+  (lambda (data args kw-args rest? kw-rest?)
+    (syntax-parse data
+      [((a-proc-id a-data) (b-proc b-data))
+       (define a-proc (get-dependent-result-proc #'a-proc-id))
+       (define b-proc (get-dependent-result-proc #'b-proc-id))
+       (static-infos-or (a-proc #'a-data args kw-args rest? kw-rest?) (b-proc #'b-data args kw-args rest? kw-rest?))])))
+
+(define-for-syntax (static-infos-dependent-result-and a-clos b-clos)
+  #`((#%dependent-result (merge-dependent-and (#,a-clos #,b-clos)))))
+
+(define-for-syntax (static-infos-dependent-result-or a-clos b-clos)
+  #`((#%dependent-result (merge-dependent-or (#,a-clos #,b-clos)))))
+
+(define-static-info-key-syntax/provide #%dependent-result
+  (static-info-key static-infos-dependent-result-or
+                   static-infos-dependent-result-and))
 
 (define-for-syntax (static-infos-remove as key)
   (for/list ([a (in-list (if (syntax? as) (syntax->list as) as))]

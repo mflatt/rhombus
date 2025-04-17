@@ -22,7 +22,9 @@
          "mutability.rkt"
          (only-in "class-desc.rkt" define-class-desc-syntax)
          "parens.rkt"
-         (submod "map-maybe.rkt" for-print))
+         (submod "map-maybe.rkt" for-print)
+         (only-in (submod "function-parse.rkt" for-build)
+                  find-call-result-at))
 
 (provide (for-spaces (rhombus/class
                       rhombus/annot)
@@ -162,7 +164,7 @@
                  #,assign-expr)
              tail)]
     [(_ (~and args (head::brackets index)) . tail)
-     (define (build-ref indexable index indexable-static-info)
+     (define (build-ref indexable index indexable-static-info indexable-static-infos index-static-infos)
        (define indexable-ref-id (or (indexable-static-info #'#%index-get)
                                     (if more-static?
                                         (raise-syntax-error who (not-static) indexable-in)
@@ -172,8 +174,17 @@
                                 (span-srcloc indexable #'head)
                                 #'head))
        (define result-static-infos (or (indexable-static-info #'#%index-result)
-                                       (syntax-local-static-info indexable-ref-id #'#%call-result)
-                                       #'()))
+                                       (cond
+                                         [(syntax-local-static-info indexable-ref-id #'#%call-result)
+                                          => (lambda (results)
+                                               (find-call-result-at results 2 null #f
+                                                                    (lambda ()
+                                                                      (list (list (indexable-static-infos)
+                                                                                  (index-static-infos))
+                                                                            (hashalw)
+                                                                            #f
+                                                                            #f))))]
+                                         [else #'()])))
        (values e result-static-infos))
      (cond
        [repetition?
@@ -182,18 +193,28 @@
            #:with indexable-info::repetition-info indexable
            (values
             (build-compound-repetition #'head (list indexable #'rep.parsed)
+                                       #:element-statinfo? #t
                                        (lambda (indexable index)
                                          (build-ref indexable
                                                     index
                                                     (lambda (key)
-                                                      (repetition-static-info-lookup #'indexable-info.element-static-infos key)))))
+                                                      (repetition-static-info-lookup #'indexable-info.element-static-infos key))
+                                                    (lambda ()
+                                                      (repetition-extract-static-infos #'indexable-info.element-static-infos))
+                                                    (lambda ()
+                                                      (extract-static-infos index)))))
             #'tail)])]
        [else
+        (define index-e (rhombus-local-expand #'(rhombus-expression index)))
         (define-values (e result-static-infos)
           (build-ref indexable
-                     #'(rhombus-expression index)
+                     index-e
                      (lambda (key)
-                       (syntax-local-static-info indexable key))))
+                       (syntax-local-static-info indexable key))
+                     (lambda ()
+                       (extract-static-infos indexable))
+                     (lambda ()
+                       (extract-static-infos index-e))))
         (define reloc-e (relocate (respan #`(#,indexable-in args)) e))
         (values (wrap-static-info* reloc-e result-static-infos)
                 #'tail)])]

@@ -14,12 +14,17 @@
          "call-result-key.rkt"
          "dot-provider-key.rkt"
          "dot-parse.rkt"
-         "binding.rkt")
+         "binding.rkt"
+         "index-result-key.rkt"
+         "static-info.rkt")
 
 (provide (for-spaces (rhombus/class
                       rhombus/namespace
                       rhombus/annot)
                      Listable))
+
+(module+ for-static-info
+  (provide (for-syntax get-listable-static-infos)))
 
 (define-class-desc-syntax Listable
   (interface-desc-maker
@@ -49,8 +54,24 @@
    (lambda ()
      (method-result #'treelist? #t 1 "List" (get-treelist-static-infos) 2))))
 
-(define-annotation-syntax Listable
-  (identifier-annotation listable? ((#%dot-provider listable-instance))))
+(define-for-syntax (get-listable-static-infos)
+  #`((#%dot-provider listable-instance)))
+
+(define-for-syntax (listable-of-predicate predicate-stxs)
+  #`(let ([pred #,(car predicate-stxs)])
+      (lambda (arg)
+        (for/and ([e (in-list (to-list 'Listable.of arg))])
+          (pred e)))))
+
+(define-annotation-constructor (Listable Listable.of)
+  ()
+  #'listable? #,(get-listable-static-infos)
+  1
+  #f
+  listable-of-predicate
+  (lambda (static-infoss)
+    #`((#%index-result #,(car static-infoss))))
+  #f #f)
 
 (define-dot-provider-syntax listable-instance
   (dot-provider
@@ -62,11 +83,24 @@
 
 (define-name-root Listable
   #:fields
-  ([to_list Listable.to_list]))
+  ([to_list Listable.to_list]
+   [of Listable.of]))
+
+(define-syntax to-list-static-infos
+  (lambda (data args kw-args rest? kw-rest?)
+    (define si (get-treelist-static-infos))
+    (cond
+      [(pair? args)
+       (define elem-si (static-info-lookup (car args) #'#%index-result))
+       (if elem-si
+           #`((#%index-result #,elem-si)
+              #,@si)
+           si)]
+      [else si])))
 
 ;; also see `to-treelist-who` in "list.rkt"
 (define/method (Listable.to_list v)
-  #:static-infos ((#%call-result #,(get-treelist-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (to-list-static-infos #f)))))
   (to-treelist who v))
 
 (define-annotation-syntax Listable.to_list

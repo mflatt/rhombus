@@ -3,6 +3,7 @@
                      racket/keyword
                      syntax/parse/pre
                      enforest/name-parse
+                     enforest/syntax-local
                      shrubbery/print
                      "treelist.rkt"
                      "srcloc.rkt"
@@ -66,7 +67,8 @@
                        build-unsafe-case-function
                        maybe-add-function-result-definition
                        maybe-add-unsafe-definition
-                       parse-anonymous-function-shape))
+                       parse-anonymous-function-shape
+                       find-call-result-at))
   (begin-for-syntax
     (provide (struct-out converter))))
 
@@ -1238,7 +1240,13 @@
                                        results
                                        (+ (length rands) (length extra-args))
                                        null
-                                       #f))]
+                                       #f
+                                       (lambda ()
+                                         (list (for/list ([arg (in-list rands)])
+                                                 (extract-static-infos arg))
+                                               (hashalw)
+                                               #f
+                                               #f))))]
                                 [else #'()])
                               result-static-infos))
         (define arity (arithmetic-shift 1 (length formals)))
@@ -1308,7 +1316,7 @@
        (syntax->list #'(rand.exp ...))
        rsts amp dots
        kwrsts
-       (lambda (rator extra-rands args rest-args kwrest-args rator-static-info)
+       (lambda (rator extra-rands args rest-args kwrest-args rator-static-info rand-extract-static-infos)
          (define kws (syntax->list #'(rand.kw ...)))
          (when static?
            (define a (or rator-arity
@@ -1326,8 +1334,10 @@
                                         (list kw (discard-static-infos arg))
                                         (list (discard-static-infos arg))))))
          (define w-rator (discard-static-infos (wrap-rator rator extra-rands)))
-         (define w-extra-rands (for/list ([extra-rand (in-list extra-rands)])
-                                 (discard-static-infos (wrap-extra-rand extra-rand extra-rands))))
+         (define w0-extra-rands (for/list ([extra-rand (in-list extra-rands)])
+                                  (wrap-extra-rand extra-rand extra-rands)))
+         (define w-extra-rands (for/list ([w0-extra-rand (in-list w0-extra-rands)])
+                                 (discard-static-infos w0-extra-rand)))
          (define call-e (relocate+reraw
                          (or srcloc
                              (respan (datum->syntax #f (list (or rator-stx rator-in) args-stx))))
@@ -1372,7 +1382,25 @@
                                                (- (+ num-rands (length extra-rands))
                                                   (length sorted-kws))
                                                sorted-kws
-                                               kwrsts))]
+                                               kwrsts
+                                               (lambda ()
+                                                 (define init-t (cons (reverse (for/list ([rand (in-list w0-extra-rands)])
+                                                                                 (extract-static-infos rand)))
+                                                                      (hashalw)))
+                                                 (define t
+                                                   (for/fold ([t init-t]) ([kw (in-list kws)]
+                                                                           [arg (in-list args)]
+                                                                           [i (in-naturals)])
+                                                     (define si (rand-extract-static-infos arg i))
+                                                     (if (syntax-e kw)
+                                                         (cons (car t)
+                                                               (hash-set (cdr t) (syntax-e kw) si))
+                                                         (cons (cons si (car t))
+                                                               (cdr t)))))
+                                                 (list (reverse (car t))
+                                                       (cdr t)
+                                                       (and rsts #t)
+                                                       (and kwrsts #t)))))]
                                         [else #'()])
                                       extra-result-static-infos))
          (values w-call-e result-static-infos)))])
@@ -1381,7 +1409,7 @@
    #f))
 
 ;; does not support keyword arguments, for now
-(define-for-syntax (find-call-result-at results arity kws kw-rest?)
+(define-for-syntax (find-call-result-at results arity kws kw-rest? get-arg-static-infos)
   (syntax-parse results
     [(#:at_arities r)
      (let loop ([r #'r])
@@ -1398,12 +1426,27 @@
               (if (or (not kw-rest?)
                       (and (not allow-kws)
                            (sorted-list-subset? (syntax->datum req-kws) kws)))
-                  #'results
+                  (force-call-results #'results get-arg-static-infos)
                   ;; we don't know whether the call matches or not, so stop searching
                   #'())
               (loop #'rest))]
          [_ #'()]))]
-    [_ results]))
+    [_ (force-call-results results get-arg-static-infos)]))
+
+(define-for-syntax (force-call-results static-infos get-arg-static-infos)
+  (cond
+    [(static-info-lookup static-infos #'#%dependent-result)
+     => (lambda (d)
+          (define si (static-infos-remove static-infos #'#%dependent-result))
+          (syntax-parse d
+            [(id:identifier data)
+             (define proc (get-dependent-result-proc #'id))
+             (define t (get-arg-static-infos))
+             (if t
+                 (static-infos-and si (apply proc #'data t))
+                 si)]
+            [_ si]))]
+    [else static-infos]))
 
 (define-for-syntax (handle-repetition repetition?
                                       rator ; already parsed as expression or repetition
@@ -1429,7 +1472,9 @@
        (and kwrsts
             (syntax-parse kwrsts [kwrst::expression #'kwrst.parsed])))
      (define-values (e result-static-infos)
-       (k rator extra-rands args rest-args kwrest-args (lambda (key) (syntax-local-static-info rator key))))
+       (k rator extra-rands args rest-args kwrest-args
+          (lambda (key) (syntax-local-static-info rator key))
+          (lambda (arg index) (extract-static-infos arg))))
      (wrap-static-info* e result-static-infos)]
     [else
      ;; parse arguments as repetitions
@@ -1470,7 +1515,16 @@
                (lambda (key)
                  (syntax-parse rator
                    [rep::repetition-info
-                    (repetition-static-info-lookup #'rep.element-static-infos key)])))))))]))
+                    (repetition-static-info-lookup #'rep.element-static-infos key)]))
+               (lambda (arg index)
+                 (define n (length extra-rands))
+                 (cond
+                   [(index . < . n)
+                    (extract-static-infos (list-ref extra-rands index))]
+                   [else
+                    (syntax-parse (list-ref args (- index n))
+                      [rep::repetition-info
+                       (repetition-extract-static-infos #'rep.element-static-infos)])])))))))]))
 
 (define-for-syntax (complex-argument-splice? gs-stx)
   ;; multiple `&` or `...`, or not at the end before `~&`,

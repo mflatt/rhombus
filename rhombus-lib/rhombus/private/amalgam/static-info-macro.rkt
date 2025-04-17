@@ -75,6 +75,7 @@
 
      function_arity_key
      call_result_key
+     dependent_result_key
      index_result_key
      index_get_key
      index_set_key
@@ -321,6 +322,7 @@
 
 (define-key function_arity_key #%function-arity)
 (define-key call_result_key #%call-result)
+(define-key dependent_result_key #%dependent-result)
 (define-key index_result_key #%index-result)
 (define-key index_get_key #%index-get)
 (define-key index_set_key #%index-set)
