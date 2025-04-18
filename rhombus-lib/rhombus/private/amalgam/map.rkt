@@ -6,7 +6,8 @@
                      shrubbery/print
                      "srcloc.rkt"
                      "tag.rkt"
-                     "list-last.rkt")
+                     "list-last.rkt"
+                     "annot-context.rkt")
          "treelist.rkt"
          "to-list.rkt"
          "provide.rkt"
@@ -490,7 +491,9 @@
                           #f)))))
 
 (define-syntax (map-later-of-static-infos data static-infoss)
-  #`((#%index-result #,(cadr static-infoss))))
+  #`((#%index-result #,(cadr static-infoss))
+     (#%sequence-element ((#%values (#,(car static-infoss)
+                                     #,(cadr static-infoss)))))))
 
 (define-annotation-constructor (Map/again Map.later_of)
   ()
@@ -1079,8 +1082,50 @@
   #:static-infos ((#%call-result #,(get-int-static-infos)))
   (hash-count ht))
 
+(define-syntax (select-key-or-value data deps)
+  (define args (annotation-dependencies-args deps))
+  (define map-i 0)
+  (define si
+    (or (static-info-lookup (or (and (< map-i (length args))
+                                     (list-ref args map-i))
+                                #'())
+                            #'#%sequence-element)
+        #'()))
+  (syntax-parse (static-info-lookup si #'#%values)
+    [(k v)
+     (syntax-parse data
+       [(which mode)
+        (case (syntax-e #'which)
+          [(both)
+           (define-values (new-k new-v)
+             (case (syntax-e #'mode)
+               [(merge)
+                (if (< 2 (length args))
+                    (values (static-infos-or #'k (list-ref args 1))
+                            (static-infos-or #'v (list-ref args 2)))
+                    (values null null))]
+               [else
+                (values #'k #'v)]))
+           (if (and (or (null? new-k)
+                        (and (syntax? new-k) (null? (syntax-e new-k))))
+                    (or (null? new-v)
+                        (and (syntax? new-v) (null? (syntax-e new-v)))))
+               #`()
+               #`((#%sequence-element ((#%values (#,new-k #,new-v))))))]
+          [else
+           (define si (if (eq? (syntax-e #'which) 'key)
+                          #'k
+                          #'v))
+           (case (syntax-e #'mode)
+             [(index)
+              #`((#%index-result #,si))]
+             [else
+              si])])])]
+    [_ #`()]))
+
 (define/method (Map.keys ht [try-sort? #f])
-  #:static-infos ((#%call-result #,(get-treelist-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (key index)))
+                                  #,@(get-treelist-static-infos))))
   (check-readable-map who ht)
   (list->treelist (hash-keys ht (and try-sort? #t))))
 
@@ -1094,23 +1139,28 @@
 
 (define/method (Map.to_sequence ht)
   #:primitive (in-hash)
-  #:static-infos ((#%call-result ((#%sequence-constructor #t))))
+  #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (both #f)))
+                                  (#%sequence-constructor #t))))
   (in-hash ht))
 
 (define/method (Map.values ht)
-  #:static-infos ((#%call-result #,(get-treelist-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (value index)))
+                                  #,@(get-treelist-static-infos))))
   (check-readable-map who ht)
   (list->treelist (hash-values ht)))
 
 (define/method Map.get
   #:primitive (hash-ref)
+  #:static-infos ((#%call-result (#:at_arities
+                                  ([4 ((#%dependent-result (select-key-or-value (value result))))]))))
   (case-lambda
     [(ht key) (hash-ref ht key)]
     [(ht key default) (hash-ref ht key default)]))
 
 (define/method (Map.set ht key val)
   #:primitive (hash-set)
-  #:static-infos ((#%call-result #,(get-map-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (both merge)))
+                                  #,@(get-map-static-infos))))
   (hash-set ht key val))
 
 (define (check-map who ht)
@@ -1180,13 +1230,15 @@
   mht)
 
 (define/method (Map.snapshot ht)
-  #:static-infos ((#%call-result #,(get-map-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (both #f)))
+                                  #,@(get-map-static-infos))))
   (check-readable-map who ht)
   (hash-snapshot ht))
 
 (define/method (Map.remove ht key)
   #:primitive (hash-remove)
-  #:static-infos ((#%call-result #,(get-map-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (both #f)))
+                                  #,@(get-map-static-infos))))
   (hash-remove ht key))
 
 (define/method (MutableMap.set ht key val)

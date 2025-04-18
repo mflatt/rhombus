@@ -1290,7 +1290,7 @@
                                                            #,rator-arity)
                                     extra-args)))]
                        [fun (wrap-static-info* fun (indirect-get-function-static-infos))]
-                       [fun (if (null? (syntax-e static-infos))
+                       [fun (if (or (null? static-infos) (and (syntax? static-infos) (null? (syntax-e static-infos))))
                                 fun
                                 (wrap-static-info fun #'#%call-result static-infos))]
                        [fun (wrap-static-info fun #'#%function-arity arity)])
@@ -1451,7 +1451,7 @@
                    (or (not (syntax-e allow-kws))
                        (sorted-list-subset? kws (syntax->datum allow-kws))))
               (if (or (not kw-rest?)
-                      (and (not allow-kws)
+                      (and (not (syntax-e allow-kws))
                            (sorted-list-subset? (syntax->datum req-kws) kws)))
                   (force-call-results #'results get-arg-static-infos)
                   ;; we don't know whether the call matches or not, so stop searching
@@ -1473,6 +1473,10 @@
                  (static-infos-and si (proc #'data deps))
                  si)]
             [_ si]))]
+    [(static-info-lookup static-infos #'#%values)
+     => (lambda (d)
+          #`((#%values #,(for/list ([si (in-list (syntax->list d))])
+                           (force-call-results si get-arg-static-infos)))))]
     [else static-infos]))
 
 (define-for-syntax (handle-repetition repetition?

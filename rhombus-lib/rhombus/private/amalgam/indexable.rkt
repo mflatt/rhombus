@@ -4,7 +4,8 @@
                      "srcloc.rkt"
                      "statically-str.rkt"
                      "interface-parse.rkt"
-                     "class-method-result.rkt")
+                     "class-method-result.rkt"
+                     "annot-context.rkt")
          "treelist.rkt"
          "mutable-treelist.rkt"
          "provide.rkt"
@@ -179,11 +180,12 @@
                                           => (lambda (results)
                                                (find-call-result-at results 2 null #f
                                                                     (lambda ()
-                                                                      (list (list (indexable-static-infos)
-                                                                                  (index-static-infos))
-                                                                            (hashalw)
-                                                                            #f
-                                                                            #f))))]
+                                                                      (annotation-dependencies
+                                                                       (list (indexable-static-infos)
+                                                                             (index-static-infos))
+                                                                       (hashalw)
+                                                                       #f
+                                                                       #f))))]
                                          [else #'()])))
        (values e result-static-infos))
      (cond
