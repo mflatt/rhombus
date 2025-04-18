@@ -34,7 +34,9 @@
          "order.rkt"
          "order-primitive.rkt"
          "call-result-key.rkt"
-         "index-result-key.rkt")
+         "index-result-key.rkt"
+         "sequence-element-key.rkt"
+         "values-key.rkt")
 
 (provide (for-spaces (#f
                       rhombus/repet
@@ -452,7 +454,8 @@
                  (syntax-parse dep
                    [(id data)
                     (define proc (syntax-local-value #'id))
-                    (proc #'data deps)]))]
+                    (static-infos-and (proc #'data deps)
+                                      (static-infos-remove c-static-infos #'#%dependent-result))]))]
            [else c-static-infos])))
      (define info-maker (syntax-local-value #'info-maker-id))
      (info-maker #'info-maker-data c-static-infoss)]))
@@ -1012,7 +1015,9 @@
   ([of Any.of]
    [to_boolean Any.to_boolean]
    [like Any.like]
-   [like_element Any.like_element]))
+   [like_element Any.like_element]
+   [like_key Any.like_key]
+   [like_value Any.like_value]))
 
 (define-name-root Int
   #:fields
@@ -1279,6 +1284,27 @@
 
 (define-annotation-syntax Any.like_element
   (make-like #'like-element-accessor))
+
+(define-for-syntax (like-sequence-values-accessor data deps key?)
+  (define si (get-argument-static-infos data deps))
+  (define se (static-info-lookup si #'#%sequence-element))
+  (or (and se
+           (syntax-parse (static-info-lookup se #'#%values)
+             [(k v) (if key? #'k #'v)]
+             [_ #f]))
+      #'()))
+
+(define-syntax (like-key-accessor data deps)
+  (like-sequence-values-accessor data deps #t))
+
+(define-annotation-syntax Any.like_key
+  (make-like #'like-key-accessor))
+
+(define-syntax (like-value-accessor data deps)
+  (like-sequence-values-accessor data deps #f))
+
+(define-annotation-syntax Any.like_value
+  (make-like #'like-value-accessor))
 
 (define-syntax (to_boolean-infoer stx)
   (syntax-parse stx

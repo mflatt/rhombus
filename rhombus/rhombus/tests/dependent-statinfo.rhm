@@ -1,22 +1,55 @@
 #lang rhombus/static/and_meta
 
-fun same(v) :: Any.like(v):
-  v
-fun delist(v) :: Any.like_element(v):
-  List.first(v)
-fun enlist(v) :: List.of(Any.like(v)):
-  [v]
+block:
+  fun same(v) :: Any.like(v):
+    v
+  fun delist(v) :: Any.like_element(v):
+    List.first(v)
+  fun enlist(v) :: List.of(Any.like(v)):
+    [v]
 
-check same("apple").length() ~is 5
-check delist(["apple"] :: List.of(String)).length() ~is 5
-check enlist("apple")[0].length() ~is 5
+  check same("apple").length() ~is 5
+  check delist(["apple"] :: List.of(String)).length() ~is 5
+  check enlist("apple")[0].length() ~is 5
 
-fun dearray(v) :: Any.like_element(v):
-  Array.get(v, 0)
+block:
+  fun dearray(v) :: Any.like_element(v):
+    Array.get(v, 0)
 
-check dearray(Array("apple") :: Array.later_of(String)).length() ~is 5
-check: dearray(Array(#'oops) :: Array.later_of(String)).length()
-       ~throws "element does not satisfy annotation"
+  check dearray(Array("apple") :: Array.later_of(String)).length() ~is 5
+  check: dearray(Array(#'oops) :: Array.later_of(String)).length()
+         ~throws "element does not satisfy annotation"
+
+block:
+  fun add(m :: Map, k, v) :: Map.of(Any.like_key(m) || Any.like(k),
+                                    Any.like_value(m) || Any.like(v)):
+    m ++ { k : v }
+
+  let m :: Map.of(String, Bytes) = { "a": #"b" }
+
+  let m2 = add(m, "hello", #"there")
+  check m2["hello"].length() ~is 5
+  check: for Set ((k, v) in m2):
+           k.length() + v.length()
+         ~is { 2, 10 }
+
+  let m3 = add(m, "hello", dynamic(#"there") :: maybe(Bytes))
+  check m3["hello"]!!.length() ~is 5
+  check: for Set ((k, v) in m3):
+           k.length() + v!!.length()
+         ~is { 2, 10 }
+
+check:
+  ~eval
+  use_static
+  fun add(m :: Map, k, v) :: Map.of(Any.like_key(m) || Any.like(k),
+                                    Any.like_value(m) || Any.like(v)):
+    m ++ { k : v }
+  def m :: Map.of(String, Bytes) = { "a": #"b" }
+  def m2 = add(m, "hello", #'bad)
+  m2["hello"].length()
+  ~throws values("no such field or method",
+                 "based on static information")
 
 annot.macro 'ToAnyLike($id, ...)':
   ~context ctx

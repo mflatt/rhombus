@@ -53,7 +53,8 @@
          define-static-info-key-syntax/provide
 
          #%indirect-static-info
-         #%values)
+         #%values
+         #%maybe)
 
 (begin-for-syntax
   (property static-info (get-stxs))
@@ -296,29 +297,38 @@
     [else
      (let ([as (flatten-indirects (if (syntax? as) (syntax->list as) as))]
            [bs (flatten-indirects (if (syntax? bs) (syntax->list bs) bs))])
-       (or
-        (and as
-             bs
-             (for/list ([a (in-list as)]
-                        #:do [(define new-val
-                                (syntax-parse a
-                                  [(a-key a-val)
-                                   (for/or ([b (in-list bs)])
-                                     (syntax-parse b
-                                       [(b-key b-val)
-                                        #:when (free-identifier=? #'a-key #'b-key)
-                                        (let ([key (syntax-local-value* #'a-key static-info-key-ref)])
-                                          (cond
-                                            [key
-                                             ((static-info-key-or key) #'a-val #'b-val)]
-                                            [else
-                                             (static-infos-result-or #'a-val #'b-val)]))]
-                                       [_ #f]))]
-                                  [_ #f]))]
-                        #:when new-val)
-               (syntax-parse a
-                 [(a-key . _) (datum->syntax #f (list #'a-key new-val))])))
-        #'()))]))
+       ;; special generalization of `maybe`
+       (define ma (static-info-lookup as (quote-syntax #%maybe)))
+       (define mb (static-info-lookup bs (quote-syntax #%maybe)))
+       (let ([as (if (and mb (not ma))
+                     (cons #`(#%maybe #,as) as)
+                     as)]
+             [bs (if (and ma (not mb))
+                     (cons #`(#%maybe #,bs) bs)
+                     bs)])
+         (or
+          (and as
+               bs
+               (for/list ([a (in-list as)]
+                          #:do [(define new-val
+                                  (syntax-parse a
+                                    [(a-key a-val)
+                                     (for/or ([b (in-list bs)])
+                                       (syntax-parse b
+                                         [(b-key b-val)
+                                          #:when (free-identifier=? #'a-key #'b-key)
+                                          (let ([key (syntax-local-value* #'a-key static-info-key-ref)])
+                                            (cond
+                                              [key
+                                               ((static-info-key-or key) #'a-val #'b-val)]
+                                              [else
+                                               (static-infos-result-or #'a-val #'b-val)]))]
+                                         [_ #f]))]
+                                    [_ #f]))]
+                          #:when new-val)
+                 (syntax-parse a
+                   [(a-key . _) (datum->syntax #f (list #'a-key new-val))])))
+          #'())))]))
 
 ;; note that `&&` at the annotation level feels like "union" on statinfo tables
 (define-for-syntax (static-infos-and as bs)
@@ -420,7 +430,12 @@
         #f]
        [_ (static-infos-maybe-dependent-result-or as bs)])]))
 
+(define-static-info-key-syntax/provide #%maybe
+  (static-info-key static-infos-result-or
+                   static-infos-result-and))
+
 (define-for-syntax (merge-dependent-results as bs merge-dependent-id merge)
+
   (syntax-parse as
     #:literals (#%dependent-result)
     [((#%dependent-result a-clos))
@@ -444,7 +459,7 @@
   (merge-dependent-results as bs #'merge-dependent-or static-infos-or))
 
 (define-syntax independent
-  (lambda (data args kw-args rest? kw-rest?)
+  (lambda (data deps)
     data))
 
 (define-for-syntax (get-dependent-result-proc id)
@@ -454,30 +469,30 @@
   (unless proc
     (raise-syntax-error #f
                         "cannot find a transformer for a dependent result"
-                        proc))
+                        id))
   proc)
 
 (define-syntax merge-dependent-and
-  (lambda (data args kw-args rest? kw-rest?)
+  (lambda (data deps)
     (syntax-parse data
-      [((a-proc-id a-data) (b-proc b-data))
+      [((a-proc-id a-data) (b-proc-id b-data))
        (define a-proc (get-dependent-result-proc #'a-proc-id))
        (define b-proc (get-dependent-result-proc #'b-proc-id))
-       (static-infos-and (a-proc #'a-data args kw-args rest? kw-rest?) (b-proc #'b-data args kw-args rest? kw-rest?))])))
+       (static-infos-and (a-proc #'a-data deps) (b-proc #'b-data deps))])))
 
 (define-syntax merge-dependent-or
-  (lambda (data args kw-args rest? kw-rest?)
+  (lambda (data deps)
     (syntax-parse data
-      [((a-proc-id a-data) (b-proc b-data))
+      [((a-proc-id a-data) (b-proc-id b-data))
        (define a-proc (get-dependent-result-proc #'a-proc-id))
        (define b-proc (get-dependent-result-proc #'b-proc-id))
-       (static-infos-or (a-proc #'a-data args kw-args rest? kw-rest?) (b-proc #'b-data args kw-args rest? kw-rest?))])))
+       (static-infos-or (a-proc #'a-data deps) (b-proc #'b-data deps))])))
 
 (define-for-syntax (static-infos-dependent-result-and a-clos b-clos)
-  #`((#%dependent-result (merge-dependent-and (#,a-clos #,b-clos)))))
+  #`(merge-dependent-and (#,a-clos #,b-clos)))
 
 (define-for-syntax (static-infos-dependent-result-or a-clos b-clos)
-  #`((#%dependent-result (merge-dependent-or (#,a-clos #,b-clos)))))
+  #`(merge-dependent-or (#,a-clos #,b-clos)))
 
 (define-static-info-key-syntax/provide #%dependent-result
   (static-info-key static-infos-dependent-result-or
