@@ -10,6 +10,7 @@
                   unsafe-fx+
                   unsafe-fx<
                   unsafe-fx<=)
+         "range-struct.rkt"
          "expression.rkt"
          "repetition.rkt"
          "compound-repetition.rkt"
@@ -33,6 +34,7 @@
          "sequence-constructor-key.rkt"
          "order.rkt"
          "order-primitive.rkt"
+         "to-list.rkt"
          "deprecated.rkt")
 
 (provide (for-spaces (rhombus/namespace
@@ -482,10 +484,6 @@
              (let ([Name (lambda ()
                            (unsafe-name))])
                Name)))]))
-
-(struct range () #:authentic)
-(struct sequence-range range () #:authentic)
-(struct list-range sequence-range () #:authentic)
 
 (define-range list-range range-from-to Range.from_to ".." #:both
   #:->sequence range-from-to->sequence)
@@ -1127,3 +1125,5 @@
 
 (define-for-syntax (install-get-treelist-static-infos! get-static-infos)
   (set! get-treelist-static-infos get-static-infos))
+
+(void (set-range->list! list-range->list list-range->treelist))
