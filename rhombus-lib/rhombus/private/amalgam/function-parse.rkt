@@ -1269,11 +1269,11 @@
                                        null
                                        #f
                                        (lambda ()
-                                         (list (for/list ([arg (in-list rands)])
-                                                 (extract-static-infos arg))
-                                               (hashalw)
-                                               #f
-                                               #f))))]
+                                         (annotation-dependencies (for/list ([arg (in-list rands)])
+                                                                    (extract-static-infos arg))
+                                                                  (hashalw)
+                                                                  #f
+                                                                  #f))))]
                                 [else #'()])
                               result-static-infos))
         (define arity (arithmetic-shift 1 (length formals)))
@@ -1424,10 +1424,10 @@
                                                                (hash-set (cdr t) (syntax-e kw) si))
                                                          (cons (cons si (car t))
                                                                (cdr t)))))
-                                                 (list (reverse (car t))
-                                                       (cdr t)
-                                                       (and rsts #t)
-                                                       (and kwrsts #t)))))]
+                                                 (annotation-dependencies (reverse (car t))
+                                                                          (cdr t)
+                                                                          (and rsts #t)
+                                                                          (and kwrsts #t)))))]
                                         [else #'()])
                                       extra-result-static-infos))
          (values w-call-e result-static-infos)))])
@@ -1468,9 +1468,9 @@
           (syntax-parse d
             [(id:identifier data)
              (define proc (get-dependent-result-proc #'id))
-             (define t (get-arg-static-infos))
-             (if t
-                 (static-infos-and si (apply proc #'data t))
+             (define deps (get-arg-static-infos))
+             (if deps
+                 (static-infos-and si (proc #'data deps))
                  si)]
             [_ si]))]
     [else static-infos]))

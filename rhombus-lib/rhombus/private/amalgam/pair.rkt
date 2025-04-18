@@ -68,6 +68,10 @@
                                     (list #'() #'())
                                     #:accessor->info? #t))))
 
+(define-syntax (pair-of-static-infos data static-infoss)
+  #`((car #,(car static-infoss))
+     (cdr #,(cadr static-infoss))))
+
 (define-annotation-constructor (Pair of)
   ()
   #'pair? #,(get-pair-static-infos)
@@ -79,9 +83,7 @@
         (lambda (arg)
           (and (car-pred (car arg))
                (cdr-pred (cdr arg))))))
-  (lambda (static-infoss)
-    #`((car #,(car static-infoss))
-       (cdr #,(cadr static-infoss))))
+  #'pair-of-static-infos #f
   #'pair-build-convert #'())
 
 (define-syntax (pair-build-convert arg-id build-convert-stxs kws data)

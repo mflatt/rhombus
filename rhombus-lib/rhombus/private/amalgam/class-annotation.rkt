@@ -57,7 +57,7 @@
               (quote #,(+ len (if no-super? 0 (length super-constructor-fields))))
               (super-field-keyword ... field-keyword ...)
               (make-class-instance-predicate accessors)
-              (make-class-instance-static-infos accessors)
+              (quote-syntax class-instance-static-infos) accessors
               #,(if name-build-convert
                     #`(quote-syntax #,name-build-convert)
                     #'not-supported-due-to-internal-reasons)
@@ -140,11 +140,10 @@
               #,(loop (cdr build-convert-stxs) (cdr accessors) (cdr args)))
             (lambda () #f))]))))
 
-(define-for-syntax (make-class-instance-static-infos accessors)
-  (lambda (static-infoss)
-    (for/list ([acc (in-list accessors)]
-               [static-infos (in-list static-infoss)])
-      #`(#,acc #,static-infos))))
+(define-syntax (class-instance-static-infos accessors static-infoss)
+  (for/list ([acc (in-list accessors)]
+             [static-infos (in-list static-infoss)])
+    #`(#,acc #,static-infos)))
 
 (define-for-syntax (build-guard-expr super-fields fields converters annotation-strs
                                      #:super [super-guard-id #f])

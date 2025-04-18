@@ -2,7 +2,8 @@
 (require (for-syntax racket/base
                      syntax/parse/pre
                      "interface-parse.rkt"
-                     "class-method-result.rkt")
+                     "class-method-result.rkt"
+                     "annot-context.rkt")
          "provide.rkt"
          (submod "list.rkt" for-listable)
          (submod "list.rkt" for-compound-repetition)
@@ -63,14 +64,16 @@
         (for/and ([e (in-list (to-list 'Listable.of arg))])
           (pred e)))))
 
+(define-syntax (listable-of-static-infoss data static-infoss)
+  #`((#%index-result #,(car static-infoss))))
+
 (define-annotation-constructor (Listable Listable.of)
   ()
   #'listable? #,(get-listable-static-infos)
   1
   #f
   listable-of-predicate
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'listable-of-static-infoss #f
   #f #f)
 
 (define-dot-provider-syntax listable-instance
@@ -87,8 +90,9 @@
    [of Listable.of]))
 
 (define-syntax to-list-static-infos
-  (lambda (data args kw-args rest? kw-rest?)
+  (lambda (data deps)
     (define si (get-treelist-static-infos))
+    (define args (annotation-dependencies-args deps))
     (cond
       [(pair? args)
        (define elem-si (static-info-lookup (car args) #'#%index-result))

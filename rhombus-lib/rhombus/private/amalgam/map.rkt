@@ -449,11 +449,10 @@
             (and (key-pred k)
                  (val-pred v)))))))
 
-(define-for-syntax map-annotation-make-static-info
-  (lambda (static-infoss)
-    #`((#%index-result #,(cadr static-infoss))
-       (#%sequence-element ((#%values (#,(car static-infoss)
-                                       #,(cadr static-infoss))))))))
+(define-syntax (map-of-static-infos data static-infoss)
+  #`((#%index-result #,(cadr static-infoss))
+     (#%sequence-element ((#%values (#,(car static-infoss)
+                                     #,(cadr static-infoss)))))))
 
 (define-annotation-constructor (Map of)
   ()
@@ -461,7 +460,7 @@
   2
   #f
   (make-map-annotation-make-predicate #'in-immutable-hash)
-  map-annotation-make-static-info
+  #'map-of-static-infos #f
   #'map-build-convert #'(#hashalw()))
 
 (define-for-syntax (make-map-later-chaperoner who)
@@ -490,14 +489,16 @@
                           ;; equal-key-proc
                           #f)))))
 
+(define-syntax (map-later-of-static-infos data static-infoss)
+  #`((#%index-result #,(cadr static-infoss))))
+
 (define-annotation-constructor (Map/again Map.later_of)
   ()
   #'immutable-hash? #,(get-map-static-infos)
   2
   #f
   (make-map-later-chaperoner 'Map)
-  (lambda (static-infoss)
-    #`((#%index-result #,(cadr static-infoss))))
+  #'map-later-of-static-infos #f
   "converter annotation not supported for elements;\n checking needs a predicate annotation for the map content"
   #'()
   #:parse-of parse-annotation-of/chaperone)
@@ -513,11 +514,11 @@
                        (syntax-parse stx
                          #:datum-literals (op |.| of)
                          [(form-id (~and dot (op |.|)) (~and of-id of) . tail)
-                          (parse-annotation-of #'(of-id . tail)
+                          (parse-annotation-of #'(of-id . tail) ctx
                                                (key-comp-map?-id mapper) (get-map-static-infos)
                                                2 #f
                                                (make-map-annotation-make-predicate #'in-immutable-hash)
-                                               map-annotation-make-static-info
+                                               #'map-of-static-infos #f
                                                #'map-build-convert #`(#,(key-comp-empty-stx mapper)))]
                          [(form-id . tail)
                           (values (relocate+reraw
@@ -594,15 +595,17 @@
 (define-annotation-syntax WeakMutableMap (identifier-annotation ephemeron-mutable-hash? #,(get-weak-mutable-map-static-infos)))
 (define-annotation-syntax ReadableMap (identifier-annotation hash? #,(get-readable-map-static-infos)))
 
+(define-syntax (no-of-static-infos data static-infoss)
+  #`())
+
 (define-annotation-constructor (MutableMap MutableMap.now_of)
   ()
   #'mutable-hash? #,(get-mutable-map-static-infos)
   2
   #f
   (make-map-annotation-make-predicate #'in-hash)
-  (lambda (static-infoss)
-    ;; no static info, since mutable and content is checked only initially
-    #'())
+  ;; no static info, since mutable and content is checked only initially
+  #'no-of-static-infos #f
   "converter annotation not supported for elements;\n immediate checking needs a predicate annotation for the mutable map content"
   #'())
 
@@ -612,8 +615,7 @@
   2
   #f
   (make-map-later-chaperoner 'MutableMap)
-  (lambda (static-infoss)
-    #`((#%index-result #,(cadr static-infoss))))
+  #'map-later-of-static-infos #f
   #'mutable-map-build-convert #'()
   #:parse-of parse-annotation-of/chaperone)
 

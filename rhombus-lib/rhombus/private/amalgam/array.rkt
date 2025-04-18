@@ -83,6 +83,9 @@
      (syntax-parse stx
        [(form-id . tail) (values (relocate-id #'form-id #'vector) #'tail)]))))
 
+(define-syntax (no-of-static-infos data static-infoss)
+  #`())
+
 (define-annotation-constructor (Array now_of)
   () #'vector? #,(get-array-static-infos)
   1
@@ -92,10 +95,12 @@
         (lambda (arg)
           (for/and ([e (in-vector arg)])
             (pred e)))))
-  (lambda (static-infoss)
-    ;; no static info, since mutable and content is checked only initially
-    #'())
+  ;; no static info, since mutable and content is checked only initially
+  #'no-of-static-infos #f
   "converter annotation not supported for elements;\n immediate checking needs a predicate annotation for the array content" #'())
+
+(define-syntax (array-of-static-infos data static-infoss)
+  #`((#%index-result #,(car static-infoss))))
 
 (define-annotation-constructor (Array/again later_of)
   () #'vector? #,(get-array-static-infos)
@@ -112,8 +117,7 @@
           (chaperone-vector vec
                             #,(make-reelementer "current")
                             #,(make-reelementer "new")))))
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'array-of-static-infos #f
   #'array-build-convert #'()
   #:parse-of parse-annotation-of/chaperone)
 

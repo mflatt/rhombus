@@ -5,7 +5,8 @@
          "mutability.rkt")
 
 (provide (struct-out annotation-context)
-         empty-annot-context)
+         empty-annot-context
+         (struct-out annotation-dependencies))
 
 (struct annotation-context (argument-names this-pos)
   #:property prop:field-name->accessor
@@ -26,3 +27,7 @@
 (define empty-annot-context
   (annotation-context empty-equal_name_and_scopes-map #f))
 
+(struct annotation-dependencies (args     ; list of static-infos
+                                 kw-args  ; map of keyword -> static-infos
+                                 rest?
+                                 kw-rest?))

@@ -487,14 +487,16 @@
           (for/and ([e (#,in-form-stx arg)])
             (pred e))))))
 
+(define-syntax (list-of-static-infos data static-infoss)
+  #`((#%index-result #,(car static-infoss))))
+
 (define-annotation-constructor (List List.of)
   ()
   #'treelist? #,(get-treelist-static-infos)
   1
   #f
   (make-list-annotation-make-predicate #'in-treelist)
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'list-of-static-infos #f
   #'treelist-build-convert #'())
 
 (define-annotation-constructor (List/again List.later_of)
@@ -527,8 +529,7 @@
                               #:delete (lambda (lst idx state) state)
                               #:take (lambda (lst n state) state)
                               #:drop (lambda (lst n state) state)))))
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'list-of-static-infos #f
   "converter annotation not supported for elements;\n checking needs a predicate annotation for the list content"
   #'()
   #:parse-of parse-annotation-of/chaperone)
@@ -539,9 +540,11 @@
   1
   #f
   (make-list-annotation-make-predicate #'in-list)
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'list-of-static-infos #f
   #'list-build-convert #'())
+
+(define-syntax (no-of-static-infos data static-infoss)
+  #`())
 
 (define-annotation-constructor (MutableList MutableList.now_of)
   ()
@@ -549,9 +552,8 @@
   1
   #f
   (make-list-annotation-make-predicate #'in-mutable-treelist)
-  (lambda (static-infoss)
-    ;; no static info, since mutable and content is checked only initially
-    #'())
+  ;; no static info, since mutable and content is checked only initially
+  #'no-of-static-infos #f
   "converter annotation not supported for elements;\n immediate checking needs a predicate annotation for the mutable list content"
   #'())
 
@@ -574,8 +576,7 @@
                                       #:insert #,(make-reelementer "new")
                                       #:append (lambda (mlst lst)
                                                  (check-elements 'MutableList #f pred lst '#,(car annot-strs)))))))
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'list-of-static-infos #f
   #'mutable-list-build-convert #'()
   #:parse-of parse-annotation-of/chaperone)
 
@@ -709,8 +710,7 @@
   1
   #f
   (make-list-annotation-make-predicate #'in-treelist)
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'list-of-static-infos #f
   #'treelist-build-convert #'())
 
 (define-annotation-constructor (NonemptyPairList NonemptyPairList.of)
@@ -720,8 +720,7 @@
   1
   #f
   (make-list-annotation-make-predicate #'in-list)
-  (lambda (static-infoss)
-    #`((#%index-result #,(car static-infoss))))
+  #'list-of-static-infos #f
   #'list-build-convert #'())
 
 (define-reducer-syntax List

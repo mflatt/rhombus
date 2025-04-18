@@ -157,14 +157,16 @@
   (define (discard-static-infos e)
     (unwrap-static-infos e))
 
-  (define (static-info-lookup static-infos find-key)
+  (define (static-info-lookup static-infos find-key
+                              #:no-indirect? [no-indirect? #f])
     (for/or ([static-info (in-list (if (syntax? static-infos)
                                        (syntax->list static-infos)
                                        static-infos))])
       (syntax-parse static-info
         [(key val) (or (and (free-identifier=? #'key find-key)
                             #'val)
-                       (and (free-identifier=? #'key #'#%indirect-static-info)
+                       (and (not no-indirect?)
+                            (free-identifier=? #'key #'#%indirect-static-info)
                             (indirect-static-info-ref #'val find-key)))]
         [_ #f])))
 

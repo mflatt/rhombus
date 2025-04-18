@@ -646,9 +646,8 @@
           (for/and ([v (#,in-form-stx (set-ht arg))])
             (pred v))))))
 
-(define-for-syntax set-annotation-make-static-info
-  (lambda (static-infoss)
-    #`((#%sequence-element #,(car static-infoss)))))
+(define-syntax (set-of-static-infos data static-infoss)
+  #`((#%sequence-element #,(car static-infoss))))
 
 (define-annotation-constructor (Set of)
   ()
@@ -656,7 +655,7 @@
   1
   #f
   (make-set-annotation-make-predicate #'in-immutable-hash-keys)
-  set-annotation-make-static-info
+  #'set-of-static-infos #f
   #'set-build-convert #'(#hashalw()))
 
 (define-for-syntax (make-set-later-chaperoner who)
@@ -685,13 +684,16 @@
                              ;; equal-key-proc
                              #f)))))))
 
+(define-syntax (no-of-static-infos data static-infoss)
+  #`())
+
 (define-annotation-constructor (Set/again Set.later_of)
   ()
   #'immutable-set? #,(get-set-static-infos)
   1
   #f
   (make-set-later-chaperoner 'Set)
-  (lambda (static-infoss) #'())
+  #'no-of-static-infos #f
   #'mutable-set-build-convert #'()
   #:parse-of parse-annotation-of/chaperone)
 
@@ -706,11 +708,11 @@
                        (syntax-parse stx
                          #:datum-literals (op |.| of)
                          [(form-id (~and dot (op |.|)) (~and of-id of) . tail)
-                          (parse-annotation-of #'(of-id . tail)
+                          (parse-annotation-of #'(of-id . tail) ctx
                                                (key-comp-set?-id mapper) (get-set-static-infos)
                                                1 #f
                                                (make-set-annotation-make-predicate #'in-immutable-hash-keys)
-                                               set-annotation-make-static-info
+                                               #'set-of-static-infos #f
                                                #'set-build-convert #`(#,(key-comp-empty-stx mapper)))]
                          [(form-id . tail)
                           (values (relocate+reraw
@@ -798,7 +800,7 @@
   1
   #f
   (make-set-annotation-make-predicate #'in-hash-keys)
-  (lambda (static-infoss) #'())
+  #'no-of-static-infos #f
   "converter annotation not supported for elements;\n immediate checking needs a predicate annotation for the mutable set content"
   #'())
 
@@ -808,7 +810,7 @@
   1
   #f
   (make-set-later-chaperoner 'MutableSet)
-  (lambda (static-infoss) #'())
+  #'no-of-static-infos #f
   #'mutable-set-build-convert #'()
   #:parse-of parse-annotation-of/chaperone)
 

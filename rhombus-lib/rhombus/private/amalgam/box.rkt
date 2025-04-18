@@ -64,6 +64,9 @@
                                     (list #'unbox)
                                     (list #'())))))
 
+(define-syntax (no-of-static-infos data static-infoss)
+  #`())
+
 (define-annotation-constructor (Box now_of)
   ()
   #'box? #,(get-box-static-infos)
@@ -73,10 +76,12 @@
     #`(let ([pred #,(car predicate-stxs)])
         (lambda (arg)
           (pred (unbox arg)))))
-  (lambda (static-infoss)
-    ;; no static info, since mutable and content is checked only initially
-    #'())
+  ;; no static info, since mutable and content is checked only initially
+  #'no-of-static-infos #f
   "converter annotation not supported for value;\n immediate checking needs a predicate annotation for the box content" #'())
+
+(define-syntax (box-later-of-static-infos data static-infoss)
+  #`((unbox #,(car static-infoss))))
 
 (define-annotation-constructor (Box/again later_of)
   ()
@@ -94,8 +99,7 @@
           (chaperone-box bx
                          #,(make-reboxer "current")
                          #,(make-reboxer "new")))))
-  (lambda (static-infoss)
-    #`((unbox #,(car static-infoss))))
+  #'box-later-of-static-infos #f
   #'box-build-convert #'()
   #:parse-of parse-annotation-of/chaperone)
 
