@@ -12,6 +12,10 @@
                      "maybe-as-original.rkt")
          racket/stxparam
          "expression.rkt"
+         (only-in "annotation.rkt"
+                  :~)
+         (only-in (submod "annotation.rkt" for-class)
+                  annotation-predicate-form)
          "parse.rkt"
          "expression.rkt"
          "entry-point.rkt"
@@ -28,6 +32,9 @@
          (submod "assign.rkt" for-assign)
          "parens.rkt"
          (submod "function-parse.rkt" for-call)
+         (only-in (submod "function-parse.rkt" for-build)
+                  parse-arg-context
+                  :ret-annotation/prepass)
          "is-static.rkt"
          "realm.rkt"
          "name-prefix.rkt"
@@ -44,6 +51,8 @@
                      build-method-results
                      build-method-result-expression
                      build-methods
+
+                     expand-case-result-annotations
 
                      get-private-table
                      objects-desc-ref)
@@ -403,6 +412,56 @@
                    #:when (eq? mode (if (pair? v) 'property 'method)))
           sym)
         symbol<?))
+
+(define-for-syntax (expand-case-result-annotations added-methods final?)
+  ;; If a final method has cases and no overall result annotation, then expand the
+  ;; annotationn on each case just once, and then we can use it for both the cases
+  ;; and an overall annotation that propagates unioned static information
+  (for/list ([added (in-list added-methods)])
+    (cond
+      [(and (added-method-has-cases? added)
+            (or (eq? (added-method-disposition added) 'final?)
+                final?)
+            (syntax-parse (added-method-maybe-ret added)
+              [(args ()) #t]
+              [_ #f]))
+       ;; build create an annotation lifted to the declaration level that unions
+       ;; static info from the cases
+       (syntax-parse (added-method-rhs added)
+         #:datum-literals (group)
+         [(_::block (group fun-id
+                           (_::alts)))
+          ;; no alternaitives(?), so nothing to merge
+          added]
+         [(_::block (group fun-id
+                           (_::alts
+                            (_::block (group a-id (_::parens . _) (_::block . _)))
+                            ...)))
+          ;; no result annotations, anyway
+          added]
+         [(btag0::block ((~and gtag0 group) fun-id
+                                            (atag::alts
+                                             (btag::block ((~and gtag group)
+                                                           (~and args (_::parens arg ...))
+                                                           (~var ret (:ret-annotation/prepass (parse-arg-context #'(parens (group this) arg ...))))
+                                                           body))
+                                             ...)))
+          (define static-infoss (syntax->list #'(ret.static-infos ...)))
+          (define static-infos
+            (for/fold ([static-infos (car static-infoss)]) ([si (in-list (cdr static-infoss))])
+              (static-infos-or static-infos si)))
+          (define synthesized-annot
+            (cond
+              [(or (null? static-infos)
+                   (and (syntax? static-infos) (null? (syntax-e static-infos))))
+               #'()]
+              [else
+               #`(:~ (parsed #:rhombus/annot #,(annotation-predicate-form #'(lambda xs #t) static-infos)))]))
+          (struct-copy added-method added
+                       [maybe-ret #`[(parens) #,synthesized-annot]]
+                       [rhs #'(btag0 (gtag0 fun-id (atag (btag (gtag args (~@ . ret.ret) body))
+                                                         ...)))])])]
+      [else added])))
 
 (define-for-syntax (build-method-results added-methods
                                          method-mindex method-vtable method-private

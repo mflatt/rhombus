@@ -191,7 +191,7 @@
    #f
    '((default . stronger))
    'macro
-   (lambda (stx)
+   (lambda (stx ctx)
      (raise-syntax-error #f "cannot be used as an annotation" stx))))
 
 (define-for-syntax not-supported-due-to-internal-reasons

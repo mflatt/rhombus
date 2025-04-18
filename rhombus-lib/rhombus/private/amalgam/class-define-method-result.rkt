@@ -2,7 +2,8 @@
 (require (for-syntax racket/base
                      syntax/parse/pre
                      "annotation-string.rkt"
-                     "class-method-result.rkt")
+                     "class-method-result.rkt"
+                     "same-expression.rkt")
          "static-info.rkt"
          (submod "define-arity.rkt" for-info)
          "call-result-key.rkt"
@@ -21,7 +22,8 @@
 
 (define-syntax (define-method-result stx)
   (syntax-parse stx
-    [(_ id (ret::ret-annotation) (super-result-id ...)
+    [(_ id [(parens arg ...) ((~var ret (:ret-annotation (parse-arg-context #'(parens (group this) arg ...)))))]
+        (super-result-id ...)
         maybe-id convert-ok? checked-append? checked-compare? kind arity
         maybe-call-statinfo-id
         maybe-ref-statinfo-id+id

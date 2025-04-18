@@ -415,7 +415,7 @@
                     #:when dp)
            dp))
 
-       (define added-methods (reverse (hash-ref options 'methods '())))
+       (define added-methods/orig (reverse (hash-ref options 'methods '())))
        (define-values (method-mindex   ; symbol -> mindex
                        method-names    ; index -> symbol-or-identifier
                        method-vtable   ; index -> function-identifier or '#:abstract
@@ -424,9 +424,11 @@
                        method-private-inherit ; symbol -> (vector ref-id index maybe-result-id)
                        method-decls    ; symbol -> identifier, intended for checking distinct
                        abstract-name)  ; #f or identifier for a still-abstract method
-         (extract-method-tables stxes added-methods super interfaces
+         (extract-method-tables stxes added-methods/orig super interfaces
                                 private-interfaces protected-interfaces
                                 final? prefab?))
+
+       (define added-methods (expand-case-result-annotations added-methods/orig final?))
 
        (check-fields-methods-dots-distinct stxes field-ht method-mindex method-names method-decls dots)
        (check-consistent-unimmplemented stxes final? abstract-name #'name)

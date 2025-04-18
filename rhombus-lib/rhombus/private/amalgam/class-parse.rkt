@@ -165,7 +165,12 @@
                      annotation-str
                      exposure ; 'public, 'private, or 'protected
                      mutability))
-(struct added-method (id rhs-id rhs stx-params maybe-ret result-id
+(struct added-method (id rhs-id
+                         rhs
+                         stx-params
+                         has-cases?  ; #t => `rhs` is a `fun` form with cases, possibly with ret annotations
+                         maybe-ret   ; #`[args ret-seq] for overall method
+                         result-id
                          body        ; 'method, 'abstract
                          replace     ; 'method, 'override
                          disposition ; 'abstract, 'final, 'private

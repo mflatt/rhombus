@@ -218,7 +218,7 @@
                       #:property #:override-property #:protected-property
                       #:final-property #:final-override-property #:final-protected-property
                       #:private-property #:private-override-property))
-      id rhs maybe-ret)
+      id rhs has-cases? maybe-ret)
      (define-values (body replace disposition exposure kind)
        (case (syntax-e #'tag)
          [(#:method) (values 'method 'method 'abstract 'public 'method)]
@@ -243,8 +243,11 @@
                                                     (car (generate-temporaries #'(id)))
                                                     #'rhs
                                                     stx-params
+                                                    (syntax-e #'has-cases?)
                                                     #'maybe-ret
-                                                    (and (or (pair? (syntax-e #'maybe-ret))
+                                                    (and (or (syntax-parse #'maybe-ret
+                                                               [(args (t . _)) #t]
+                                                               [_ #f])
                                                              arity
                                                              ;; may need to propagate super:
                                                              (eq? replace 'override))
@@ -260,7 +263,7 @@
     [((~and tag (~or* #:abstract #:abstract-protected
                       #:abstract-property #:abstract-protected-property
                       #:abstract-override #:abstract-override-property))
-      id rhs maybe-ret)
+      id rhs has-cases? maybe-ret)
      (define-values (replace exposure kind)
        (case (syntax-e #'tag)
          [(#:abstract) (values 'method 'public 'method)]
@@ -275,6 +278,7 @@
                                                     '#:abstract
                                                     #'rhs
                                                     stx-params
+                                                    #f
                                                     #'maybe-ret
                                                     (and (or (pair? (syntax-e #'maybe-ret))
                                                              arity

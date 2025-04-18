@@ -119,7 +119,7 @@
     (syntax-case stx ()
       [(_ id) #`(quote-syntax #,((make-interned-syntax-introducer 'rhombus/annot) #'id))]))
 
-  (define (raise-not-a-annotation id)
+  (define (raise-not-a-annotation id ctx)
     (raise-syntax-error #f
                         "not bound as an annotation"
                         id))

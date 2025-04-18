@@ -8,13 +8,13 @@
                      "treelist.rkt"
                      "srcloc.rkt"
                      "tag.rkt"
-                     "same-expression.rkt"
                      "static-info-pack.rkt"
                      "entry-point-adjustment.rkt"
                      (only-in "annotation-string.rkt" annotation-any-string)
                      "to-list.rkt"
                      "sorted-list-subset.rkt"
-                     "dotted-sequence.rkt")
+                     "dotted-sequence.rkt"
+                     "annot-context.rkt")
          racket/unsafe/undefined
          "treelist.rkt"
          "to-list.rkt"
@@ -58,6 +58,7 @@
                        :rhombus-kw-opt-binding
                        :ret-annotation
                        :rhombus-ret-annotation
+                       :ret-annotation/prepass
                        :maybe-arg-rest
                        :non-...-binding
                        check-arg-for-unsafe
@@ -68,7 +69,8 @@
                        maybe-add-function-result-definition
                        maybe-add-unsafe-definition
                        parse-anonymous-function-shape
-                       find-call-result-at))
+                       find-call-result-at
+                       parse-arg-context))
   (begin-for-syntax
     (provide (struct-out converter))))
 
@@ -254,7 +256,7 @@
              #:when (free-identifier=? (in-annotation-space #'name)
                                        (annot-quote rhombus-values))))
 
-  (define-splicing-syntax-class :ret-annotation
+  (define-splicing-syntax-class (:ret-annotation [ctx empty-annot-context])
     #:attributes (static-infos ; can be `((#%values (static-infos ...)))` for multiple results
                   converter    ; a `converter` struct, or `#f`
                   annot-str)   ; the raw text of annotation, or `#f`
@@ -262,7 +264,7 @@
     #:datum-literals (group)
     (pattern (~seq ann-op::annotate-op (~optional op::values-id) (~and p (_::parens g ...)))
              #:do [(define gs #'(g ...))]
-             #:with (c::annotation ...) gs
+             #:with ((~var c (:annotation ctx)) ...) gs
              #:with (arg ...) (generate-temporaries gs)
              #:do [(define cnt (length (syntax->list gs)))
                    (define-values (sis cvtr)
@@ -318,7 +320,7 @@
              #:attr annot-str (shrubbery-syntax->string #`(#,group-tag (~? op) p)))
     (pattern (~seq ann-op::annotate-op ctc0::not-block ctc::not-block ...)
              #:do [(define annot #`(#,group-tag ctc0 ctc ...))]
-             #:with c::annotation (no-srcloc annot)
+             #:with (~var c (:annotation ctx)) (no-srcloc annot)
              #:do [(define-values (sis cvtr)
                      (syntax-parse #'c.parsed
                        [c-parsed::annotation-predicate-form
@@ -392,6 +394,27 @@
              #:attr maybe_converter proc
              #:with static_info si
              #:attr annotation_string annot-str))
+
+  ;; like `:ret-annotation`, but just forces parsing of annotations to expose static information
+  (define-splicing-syntax-class (:ret-annotation/prepass [ctx empty-annot-context])
+    #:attributes (static-infos ret)
+    #:description "return annotation"
+    #:datum-literals (group)
+    (pattern (~seq ann-op::annotate-op (~optional op::values-id) (~and p (ptag::parens g ...)))
+             #:do [(define gs #'(g ...))]
+             #:with ((~var c (:annotation ctx)) ...) gs
+             #:with (c-parsed::annotation-binding-form ...) #'(c.parsed ...)
+             #:with static-infos #'((#%values (c-parsed.static-infos ...)))
+             #:with ret #'(ann-op (~? op) (ptag (group (parsed #:rhombus/annot c.parsed)) ...)))
+    (pattern (~seq ann-op::annotate-op ctc0::not-block ctc::not-block ...)
+             #:do [(define annot #`(#,group-tag ctc0 ctc ...))]
+             #:with (~var c (:annotation ctx)) (no-srcloc annot)
+             #:with c-parsed::annotation-binding-form #'c.parsed
+             #:with static-infos #'c-parsed.static-infos
+             #:with ret #'(ann-op (parsed #:rhombus/annot c.parsed)))
+    (pattern (~seq)
+             #:with static-infos #'()
+             #:with ret #'()))
 
   (define-splicing-syntax-class :pos-rest
     #:attributes (arg parsed)
@@ -862,16 +885,19 @@
       [(list arg-list)]))
 
   (define (maybe-add-function-result-definition name extends static-infoss arity unsafe-id defns)
+    (define static-infos
+      (if (null? static-infoss)
+          #'()
+          (for/fold ([static-infos (car static-infoss)]) ([si (in-list (cdr static-infoss))])
+            (static-infos-or static-infos si))))
     (define result-info?
-      (and (pair? static-infoss)
-           (pair? (syntax-e (car static-infoss)))
-           (for/and ([static-infos (in-list (cdr static-infoss))])
-             (same-expression? (car static-infoss) static-infos))))
+      (or (pair? static-infos)
+          (and (syntax? static-infos) (pair? (syntax-e static-infos)))))
     (cons (with-syntax ([name name]
                         [extends extends]
                         [(maybe-result-info ...)
                          (if result-info?
-                             (list #`(#%call-result #,(car static-infoss)))
+                             (list #`(#%call-result #,static-infos))
                              null)]
                         [(maybe-arity-info ...)
                          (if arity
@@ -1784,6 +1810,9 @@
        (loop (cdr args)
              (cons #`[#,tmp #,(car args)] bind-accum)
              (cons tmp arg-accum))])))
+
+(define-for-syntax (parse-arg-context args-stx)
+  empty-annot-context)
 
 (begin-for-syntax
   (set-parse-function-call! parse-function-call))
