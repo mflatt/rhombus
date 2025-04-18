@@ -14,7 +14,8 @@
                      "to-list.rkt"
                      "sorted-list-subset.rkt"
                      "dotted-sequence.rkt"
-                     "annot-context.rkt")
+                     "annot-context.rkt"
+                     "syntax-map.rkt")
          racket/unsafe/undefined
          "treelist.rkt"
          "to-list.rkt"
@@ -1811,8 +1812,49 @@
              (cons #`[#,tmp #,(car args)] bind-accum)
              (cons tmp arg-accum))])))
 
-(define-for-syntax (parse-arg-context args-stx)
-  empty-annot-context)
+(begin-for-syntax
+  (define-splicing-syntax-class :annotate-or-empty
+    (pattern (~seq))
+    (pattern (~seq _::annotate-op _ ...))))
+  
+(define-for-syntax (parse-arg-context args-stx #:this? [this? #f])
+  (define ht
+    (syntax-parse args-stx
+      [(_ arg ...)
+       (define (not-binding-form? id)
+         (not (syntax-local-value* (in-binding-space id)
+                                   (lambda (v)
+                                     (or (binding-infix-operator-ref v)
+                                         (binding-prefix-operator-ref v))))))
+       (let loop ([ht empty-equal_name_and_scopes-map]
+                  [args (syntax->list #'(arg ...))]
+                  [i (if this? 1 0)])
+         (cond
+           [(null? args) ht]
+           [else
+            (define (flip id) (syntax-local-introduce id))
+            (define (at-pos i)
+              (syntax-parse (and (pair? (cdr args)) (cadr args))
+                #:datum-literals (group)
+                [(group _::...-bind . _) (treelist 'repet i)]
+                [_ i]))
+            (syntax-parse (car args)
+              #:datum-literals (group)
+              [(group kw:keyword (_::block (group id:identifier _::annotate-op . _)))
+               (loop (hash-set ht (flip #'id) (syntax-e #'kw)) (cdr args) i)]
+              [(group kw:keyword . _) (loop ht (cdr args) i)]
+              [(group id:identifier _::annotate-or-empty)
+               #:when (not-binding-form? #'id)
+               (loop (hash-set ht (flip #'id) (at-pos i)) (cdr args) (add1 i))]
+              [(group _::&-bind id:identifier _::annotate-or-empty . _)
+               #:when (not-binding-form? #'id)
+               (loop (hash-set ht (flip #'id) (treelist 'splice i)) (cdr args) (add1 i))]
+              [(group _::~&-bind id:identifier _::annotate-or-empty . _)
+               #:when (not-binding-form? #'id)
+               (loop (hash-set ht (flip #'id) 'keyword_splice) (cdr args) i)]
+              [_ (loop ht (cdr args) (add1 i))])]))]))
+  (annotation-context ht
+                      (and this? 0)))
 
 (begin-for-syntax
   (set-parse-function-call! parse-function-call))

@@ -22,7 +22,7 @@
 
 (define-syntax (define-method-result stx)
   (syntax-parse stx
-    [(_ id [(parens arg ...) ((~var ret (:ret-annotation (parse-arg-context #'(parens (group this) arg ...)))))]
+    [(_ id [args ((~var ret (:ret-annotation (parse-arg-context #:this? #t #'args))))]
         (super-result-id ...)
         maybe-id convert-ok? checked-append? checked-compare? kind arity
         maybe-call-statinfo-id

@@ -18,7 +18,8 @@
   #:existing
   #:transparent #:no-primitive
   #:fields
-  ([(argument_names argument-names) #,(get-map-static-infos)])
+  ([(argument_names argument-names) #,(get-map-static-infos)]
+   [(this_position this-pos)])
   #:properties
   ()
   #:methods

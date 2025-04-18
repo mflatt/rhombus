@@ -442,8 +442,8 @@
          [(btag0::block ((~and gtag0 group) fun-id
                                             (atag::alts
                                              (btag::block ((~and gtag group)
-                                                           (~and args (_::parens arg ...))
-                                                           (~var ret (:ret-annotation/prepass (parse-arg-context #'(parens (group this) arg ...))))
+                                                           args
+                                                           (~var ret (:ret-annotation/prepass (parse-arg-context #:this? #t #'args)))
                                                            body))
                                              ...)))
           (define static-infoss (syntax->list #'(ret.static-infos ...)))
