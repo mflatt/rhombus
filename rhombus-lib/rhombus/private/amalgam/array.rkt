@@ -1,7 +1,8 @@
 #lang racket/base
 (require (for-syntax racket/base
                      syntax/parse/pre
-                     "srcloc.rkt")
+                     "srcloc.rkt"
+                     "annot-context.rkt")
          (except-in racket/vector
                     vector-member)
          "vector-member.rkt"
@@ -17,6 +18,7 @@
          "call-result-key.rkt"
          "index-result-key.rkt"
          "sequence-constructor-key.rkt"
+         "sequence-element-key.rkt"
          "contains-key.rkt"
          "composite.rkt"
          "op-literal.rkt"
@@ -238,8 +240,28 @@
                                              (number->string n)
                                              ")"))))
 
+(define-syntax (select-elem data deps)
+  (define args (annotation-dependencies-args deps))
+  (define arr-i 0)
+  (define si
+    (or (static-info-lookup (or (and (< arr-i (length args))
+                                     (list-ref args arr-i))
+                                #'())
+                            #'#%index-result)
+        #'()))
+  (cond
+    [(or (null? si)
+         (and (syntax? si) (null? (syntax-e si))))
+     #'()]
+    [else
+     (case (syntax-e data)
+       [(sequence) #`((#%sequence-element #,si))]
+       [(index) #`((#%index-result #,si))]
+       [else si])]))
+
 (define/method (Array.get v i)
   #:primitive (vector-ref)
+  #:static-infos ((#%call-result ((#%dependent-result (select-elem value)))))
   (vector-ref v i))
 
 (define/method (Array.set v i x)
@@ -289,7 +311,8 @@
 
 (define/method (Array.snapshot v)
   #:primitive (vector->immutable-vector)
-  #:static-infos ((#%call-result #,(get-array-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-elem index))
+                                  #,@(get-array-static-infos))))
   (vector->immutable-vector v))
 
 (define/method (Array.take v n)
@@ -324,7 +347,8 @@
      v2)))
 
 (define/method (Array.to_list v)
-  #:static-infos ((#%call-result #,(get-treelist-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-elem index))
+                                  #,@(get-treelist-static-infos))))
   (check-array who v)
   (vector->treelist v))
 
@@ -338,7 +362,8 @@
 
 (define/method (Array.to_sequence v)
   #:primitive (in-vector)
-  #:static-infos ((#%call-result ((#%sequence-constructor #t))))
+  #:static-infos ((#%call-result ((#%dependent-result (select-elem sequence))
+                                  (#%sequence-constructor #t))))
   (in-vector v))
 
 (define-binding-syntax Array

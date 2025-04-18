@@ -1576,3 +1576,21 @@ block:
   check mm.snapshot().values()[0].length() ~is 2
   check m.snapshot().keys()[0].length() ~is 1
   check m.snapshot().values()[0].length() ~is 2
+
+check:
+  ~eval
+  use_static
+  def m :: Map.of(String, Bytes) = { "a" : #"bb" }
+  m.set(#"x", #"y").keys()[0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")
+
+check:
+  ~eval
+  use_static
+  def m :: Map.of(String, Bytes) = { "a" : #"bb" }
+  m.set("x", "y").values()[0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")

@@ -996,7 +996,7 @@
 
 (define/method (MutableList.snapshot lst)
   #:primitive (mutable-treelist-snapshot)
-  #:static-infos ((#%call-result #,(get-treelist-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elem (0 #f treelist))))))
   (mutable-treelist-snapshot lst))
 
 (define-sequence-syntax PairList.to_sequence/optimize

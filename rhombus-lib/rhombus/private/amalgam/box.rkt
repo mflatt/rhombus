@@ -1,5 +1,6 @@
 #lang racket/base
-(require (for-syntax racket/base)
+(require (for-syntax racket/base
+                     "annot-context.rkt")
          "provide.rkt"
          "binding.rkt"
          (submod "annotation.rkt" for-class)
@@ -48,8 +49,28 @@
   #:static-infos ((#%call-result #,(get-box-static-infos)))
   (box v))
 
+(define-syntax (select-value data deps)
+  (define args (annotation-dependencies-args deps))
+  (define bx-i 0)
+  (define si
+    (or (static-info-lookup (or (and (< bx-i (length args))
+                                     (list-ref args bx-i))
+                                #'())
+                            #'unbox)
+        #'()))
+  (cond
+    [(or (null? si)
+         (and (syntax? si) (null? (syntax-e si))))
+     #'()]
+    [else
+     (case (syntax-e data)
+       [(box) #`((unbox #,si))]
+       [else si])]))
+
 (define/arity Box.value
   #:primitive (unbox set-box!)
+  #:static-infos ((#%call-result (#:at_arities
+                                  ([2 ((#%dependent-result (select-value value)))]))))
   (case-lambda
     [(b) (unbox b)]
     [(b v) (set-box! b v)]))
@@ -135,7 +156,8 @@
   (box (unbox bx)))
 
 (define/method (Box.snapshot bx)
-  #:static-infos ((#%call-result #,(get-box-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-value box))
+                                  #,@(get-box-static-infos))))
   (check-box who bx)
   (if (immutable-box? bx)
       bx

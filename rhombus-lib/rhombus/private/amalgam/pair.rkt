@@ -1,5 +1,6 @@
 #lang racket/base
-(require (for-syntax racket/base)
+(require (for-syntax racket/base
+                     "annot-context.rkt")
          "provide.rkt"
          "composite.rkt"
          "binding.rkt"
@@ -49,12 +50,23 @@
   #:static-infos ((#%call-result #,(get-pair-static-infos)))
   (cons a d))
 
+(define-syntax (select-field data deps)
+  (define args (annotation-dependencies-args deps))
+  (define pr-i 0)
+  (or (static-info-lookup (or (and (< pr-i (length args))
+                                   (list-ref args pr-i))
+                              #'())
+                          data)
+      #'()))
+
 (define/arity (Pair.first p)
   #:primitive (car)
+  #:static-infos ((#%call-result ((#%dependent-result (select-field car)))))
   (car p))
 
 (define/arity (Pair.rest p)
   #:primitive (cdr)
+  #:static-infos ((#%call-result ((#%dependent-result (select-field cdr)))))
   (cdr p))
 
 (define-binding-syntax Pair.cons
