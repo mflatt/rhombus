@@ -318,6 +318,7 @@
                                                  []
                                                  []
                                                  []
+                                                 []
                                                  []))
                (build-veneer-desc super options
                                   parent-name interface-names all-interfaces private-interfaces protected-interfaces

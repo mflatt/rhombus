@@ -5,14 +5,18 @@
                      enforest/property
                      enforest/proc-name
                      enforest/name-parse
+                     enforest/hier-name-parse
+                     enforest/syntax-local
+                     "treelist.rkt"
                      "srcloc.rkt"
                      "introducer.rkt"
                      "annotation-string.rkt"
                      "keyword-sort.rkt"
                      "macro-result.rkt"
                      "tag.rkt"
+                     "name-path-op.rkt"
                      "annot-context.rkt"
-                     "treelist.rkt"
+                     "class-parse.rkt"
                      (for-syntax racket/base))
          "provide.rkt"
          "enforest.rkt"
@@ -22,6 +26,7 @@
          "binding.rkt"
          "name-root.rkt"
          "name-root-ref.rkt"
+         "name-root-space.rkt"
          "dotted-sequence-parse.rkt"
          "static-info.rkt"
          "parse.rkt"
@@ -1017,7 +1022,8 @@
    [like Any.like]
    [like_element Any.like_element]
    [like_key Any.like_key]
-   [like_value Any.like_value]))
+   [like_value Any.like_value]
+   [like_field Any.like_field]))
 
 (define-name-root Int
   #:fields
@@ -1234,6 +1240,20 @@
                                  val
                                  ()))
 
+(define-for-syntax (select-like accessor-id id form ctx
+                                #:make-data [make-data (lambda (x) x)])
+  (define v (hash-ref (annotation-context-argument-names ctx)
+                      (syntax-local-introduce id) #f))
+  (unless v
+    (raise-syntax-error #f
+                        "cannot find argument by name"
+                        (respan form)
+                        id))
+  (define data (if (treelist? v) (treelist->list v) v))
+  (annotation-predicate-form
+   #'(lambda (x) #t)
+   #`((#%dependent-result (#,accessor-id #,(make-data data))))))
+
 (define-for-syntax (make-like accessor-id)
   (annotation-prefix-operator
    #f
@@ -1244,19 +1264,8 @@
        #:datum-literals (group)
        [(form-id (~and args (_::parens (group id:identifier)))
                  . tail)
-        (define v (hash-ref (annotation-context-argument-names ctx)
-                            (syntax-local-introduce #'id) #f))
-        (unless v
-          (raise-syntax-error #f
-                              "cannot find argument by name"
-                              (respan #'(form-id args))
-                              #'id))
-        (define data (if (treelist? v) (treelist->list v) v))
-        (values
-         (annotation-predicate-form
-          #'(lambda (x) #t)
-          #`((#%dependent-result (#,accessor-id #,data))))
-         #'tail)]))))
+        (values (select-like accessor-id #'id #'(form-id args) ctx)
+                #'tail)]))))
 
 (define-for-syntax (get-argument-static-infos data deps)
   (define v (syntax->datum data))
@@ -1305,6 +1314,66 @@
 
 (define-annotation-syntax Any.like_value
   (make-like #'like-value-accessor))
+
+(define-syntax (like-field data deps)
+  (syntax-parse data
+    [(accessor-id data)
+     (define si (get-argument-static-infos #'data deps))
+     (or (static-info-lookup si #'accessor-id)
+         #'())]
+    [_ #'()]))
+
+(begin-for-syntax
+  (define-syntax-class :dot
+    #:description "dot operator"
+    #:opaque
+    #:datum-literals (op |.|)
+    (pattern (op |.|))))
+
+(define-annotation-syntax Any.like_field
+  (annotation-prefix-operator
+   #f
+   '((default . stronger))
+   'macro
+   (lambda (stxes ctx)
+     (syntax-parse stxes
+       #:datum-literals (group)
+       [(form-id (~and args (_::parens
+                             (group class-name-seq ...+
+                                    _::dot
+                                    field-id:identifier
+                                    (~and parens (_::parens . _)))))
+                 . tail)
+        (syntax-parse #'(class-name-seq ...)
+          [(~var class-name (:hier-name-seq in-name-root-space in-class-desc-space name-path-op name-root-ref))
+           (syntax-parse #'parens
+             #:context (respan #'(form-id args))
+             [(_parens (group id:identifier))
+              (syntax-parse #'class-name.tail
+                [(t . _) (raise-syntax-error #f
+                                             "unexpected term after accessor name"
+                                             (respan #'(form-id args))
+                                             #'t)]
+                [_ (void)])
+              (define cls (or (syntax-local-value* (in-class-desc-space #'class-name.name) class-desc-ref)
+                              (raise-syntax-error #f
+                                                  "cannot find class"
+                                                  (respan #'(form-id args))
+                                                  #'class-name.name)))
+              (define accessor-id (or (for/or ([f (in-list (class-desc-fields cls))])
+                                        (and (eq? (field-desc-name f) (syntax-e #'field-id))
+                                             (field-desc-accessor-id f)))
+                                      (raise-syntax-error #f
+                                                          "no such field in class"
+                                                          (respan #'(form-id args))
+                                                          #'field-id)))
+              (values (select-like #'like-field #'id #'(form-id args) ctx
+                                   #:make-data (lambda (data) #`(#,accessor-id #,data)))
+                      #'tail)])]
+          [_ (raise-syntax-error #f
+                                 "expected a class name"
+                                 (respan #'(form-id args))
+                                 (respan #'(class-name-seq ...)))])]))))
 
 (define-syntax (to_boolean-infoer stx)
   (syntax-parse stx

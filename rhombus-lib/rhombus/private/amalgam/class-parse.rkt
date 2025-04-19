@@ -50,6 +50,8 @@
          super-has-mutable-field?
          super-has-mutable-constructor-field?
 
+         extract-has-mutable-constructor-arguments
+
          print-field-shapes
 
          make-accessor-names)
@@ -502,6 +504,22 @@
     (and (field-desc-mutator-id fld)
          (syntax-e (field-desc-mutator-id fld))
          (not (identifier? (field-desc-constructor-arg fld))))))
+
+
+(define (extract-has-mutable-constructor-arguments constructor-field-mutables
+                                                   constructor-field-exposures
+                                                   super)
+  (values
+   ;; has-mutable-constructor-arg?
+   (or (for/or ([mut (in-list (syntax->list constructor-field-mutables))]
+                [ex (in-list (syntax->list constructor-field-exposures))])
+         (and (syntax-e mut)
+              (eq? 'public (syntax-e ex))))
+       (and super
+            (super-has-mutable-constructor-field? super)))
+   ;; has-mutable-internal-constructor-arg?
+   (for/or ([mut (in-list (syntax->list constructor-field-mutables))])
+     (syntax-e mut))))
 
 (define (print-field-shapes super fields keywords exposures)
   (append

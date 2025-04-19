@@ -2,7 +2,8 @@
 (require (for-syntax racket/base
                      syntax/parse/pre
                      "class-parse.rkt"
-                     "static-info-pack.rkt")
+                     "static-info-pack.rkt"
+                     "annot-context.rkt")
          "entry-point.rkt"
          (submod "function.rkt" for-info)
          "call-result-key.rkt"
@@ -126,6 +127,7 @@
                        dot-providers internal-dot-providers
                        [name-field ...]
                        [field-static-infos ...]
+                       [public-name-field ...]
                        [public-name-field/mutate ...] [public-maybe-set-name-field! ...]
                        [public-field-static-infos ...])
                  names])
@@ -171,12 +173,15 @@
             . #,(get-function-static-infos))
           ...))
      (with-syntax ([(sis ...) (for/list ([maybe-set (in-list (syntax->list #'(public-maybe-set-name-field! ...)))]
-                                         [si (in-list (syntax->list #'(public-field-static-infos ...)))])
+                                         [si (in-list (syntax->list #'(public-field-static-infos ...)))]
+                                         [public-name-field-id (in-list (syntax->list #'(public-name-field ...)))])
                                 (with-syntax ([(info ...)
                                                (if (syntax-e maybe-set)
-                                                   (list #`(#%call-result (#:at_arities ((2 #,si))))
+                                                   (list #`(#%call-result (#:at_arities ((2 ((#%dependent-result (select-field #,public-name-field-id))
+                                                                                             #,@si)))))
                                                          #'(#%function-arity 6))
-                                                   (list #`(#%call-result #,si)
+                                                   (list #`(#%call-result ((#%dependent-result (select-field #,public-name-field-id))
+                                                                           #,@si))
                                                          #'(#%function-arity 2)))])
                                   #'(info ... . #,(get-function-static-infos))))])
        (list
@@ -191,3 +196,13 @@
            (_ id (_ (#:at_arities ((_ ())))) . tail)
            (_ id . tail))
      #'(define-static-info-syntax id . tail)]))
+
+(define-syntax (select-field data deps)
+  (define accessor-id data)
+  (define obj-i 0)
+  (define args (annotation-dependencies-args deps))
+  (or (static-info-lookup (or (and (< obj-i (length args))
+                                   (list-ref args obj-i))
+                              #'())
+                          accessor-id)
+      #'()))

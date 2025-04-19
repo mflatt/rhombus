@@ -46,3 +46,29 @@ check:
     method get_dist(): dist
   Posn(1, 2).get_dist()
   ~is 3
+
+// dependent result annotations
+block:
+  class Posn(x, y)
+  class MPosn(mutable x, y)
+  def m :: Posn.of(String, Bytes) = Posn("a", #"bb")
+  def mm :: MPosn.now_of(String, Bytes) = MPosn("a", #"bb")
+  check Posn.x(m).length() ~is 1
+  check Posn.y(m).length() ~is 2
+  check MPosn.y(mm).length() ~is 2
+  fun ex(p) :: Any.like_field(Posn.x(p)):
+    Posn.x(p)
+  fun wy(p) :: Any.like_field(Posn.y(p)):
+    Posn.y(p)
+  check ex(m).length() ~is 1
+  check wy(m).length() ~is 2
+
+check:
+  ~eval
+  use_static
+  class MPosn(mutable x, y)
+  def mm :: MPosn.now_of(String, Bytes) = MPosn("a", #"bb")
+  MPosn.x(mm).length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")

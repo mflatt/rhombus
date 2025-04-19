@@ -24,12 +24,15 @@
                        internal-name-instance indirect-static-infos internal-indirect-static-infos
                        dot-providers internal-dot-providers
                        make-converted-name make-converted-internal
-                       constructor-name-fields constructor-public-name-fields super-name-fields super-public-name-fields
+                       constructor-name-fields constructor-public-name-fields
+                       constructor-name-field-mutable?s constructor-public-name-field-mutable?s
+                       super-name-fields super-public-name-fields
+                       super-name-field-mutable?s super-public-name-field-mutable?s
                        field-keywords public-field-keywords super-field-keywords super-public-field-keywords)
                  names])
     (define (make-ann-defs id of-id no-super?
-                           name-fields keywords
-                           super-name-fields super-field-keywords
+                           name-fields keywords field-mutable?s
+                           super-name-fields super-field-keywords super-field-mutable?s
                            name-instance-stx
                            make-converted-id indirect-static-infos-stx
                            dot-providers-stx)
@@ -44,11 +47,24 @@
                 (datum->syntax #f
                                (string->symbol
                                 (format "~a-build-convert" (syntax-e #'name)))))))
+        (define mutable?s (map syntax-e (append (syntax->list field-mutable?s)
+                                                (syntax->list super-field-mutable?s))))
+        (define has-mutable? (for/or ([mutable? (in-list mutable?s)])
+                               mutable?))
         (append
          (list
           #`(define-annotation-constructor (#,id #,of-id)
               ([accessors (list (quote-syntax super-name-field) ...
-                                (quote-syntax constructor-name-field) ...)])
+                                (quote-syntax constructor-name-field) ...)]
+               #,@(if has-mutable?
+                      #`([immutable-accessors
+                          (list #,@(for/list ([mutable? (in-list mutable?s)]
+                                              [accessor (in-list (syntax->list
+                                                                  #'(super-name-field ... constructor-name-field ...)))])
+                                     (if mutable?
+                                         #f
+                                         #`(quote-syntax #,accessor))))])
+                      '()))
               (quote-syntax name?)
               #,(with-syntax ([dot-providers dot-providers-stx]
                               [indirect-static-infos indirect-static-infos-stx])
@@ -57,7 +73,7 @@
               (quote #,(+ len (if no-super? 0 (length super-constructor-fields))))
               (super-field-keyword ... field-keyword ...)
               (make-class-instance-predicate accessors)
-              (quote-syntax class-instance-static-infos) accessors
+              (quote-syntax class-instance-static-infos) #,(if has-mutable? #'immutable-accessors #'accessors)
               #,(if name-build-convert
                     #`(quote-syntax #,name-build-convert)
                     #'not-supported-due-to-internal-reasons)
@@ -74,8 +90,8 @@
     (append
      (if exposed-internal-id
          (make-ann-defs exposed-internal-id internal-of-id #t
-                        #'constructor-name-fields #'field-keywords
-                        #'super-name-fields #'super-field-keywords
+                        #'constructor-name-fields #'field-keywords #'constructor-name-field-mutable?s
+                        #'super-name-fields #'super-field-keywords #'super-name-field-mutable?s
                         #'internal-name-instance
                         #'make-converted-internal
                         #'internal-indirect-static-infos
@@ -100,8 +116,8 @@
                                          "class"))))])]
        [else
         (make-ann-defs #'name #'name-of #f
-                       #'constructor-public-name-fields #'public-field-keywords
-                       #'super-public-name-fields #'super-public-field-keywords
+                       #'constructor-public-name-fields #'public-field-keywords #'constructor-public-name-field-mutable?s
+                       #'super-public-name-fields #'super-public-field-keywords #'super-public-name-field-mutable?s
                        #'name-instance
                        #'make-converted-name
                        #'indirect-static-infos
@@ -141,8 +157,9 @@
             (lambda () #f))]))))
 
 (define-syntax (class-instance-static-infos accessors static-infoss)
-  (for/list ([acc (in-list accessors)]
-             [static-infos (in-list static-infoss)])
+  (for/list ([acc (in-list accessors)]             
+             [static-infos (in-list static-infoss)]
+             #:when acc)
     #`(#,acc #,static-infos)))
 
 (define-for-syntax (build-guard-expr super-fields fields converters annotation-strs
