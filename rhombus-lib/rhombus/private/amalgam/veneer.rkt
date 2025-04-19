@@ -310,6 +310,11 @@
                                          null
                                          null
                                          null
+                                         null
+                                         null
+                                         null
+                                         null                                         
+                                         #f
                                          #'(name constructor-name name-instance
                                                  #f #f
                                                  indirect-static-infos

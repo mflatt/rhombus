@@ -435,6 +435,8 @@
 
 (define (field-to-field+keyword+default f arg)
   (values (field-desc-name f)
+          (field-desc-accessor-id f)
+          (field-desc-mutator-id f)
           (if (box? (syntax-e arg))
               (unbox (syntax-e arg))
               arg)
@@ -443,11 +445,11 @@
               #'#f)))
 
 (define (extract-super-constructor-fields super)
-  (for/lists (fs ls ds) ([f (in-list (if super
-                                         (class-desc-fields super)
-                                         '()))]
-                         #:do [(define arg (field-desc-constructor-arg f))]
-                         #:unless (identifier? arg))
+  (for/lists (fs as ms ls ds) ([f (in-list (if super
+                                               (class-desc-fields super)
+                                               '()))]
+                               #:do [(define arg (field-desc-constructor-arg f))]
+                               #:unless (identifier? arg))
     (field-to-field+keyword+default f arg)))
 
 (define (extract-super-internal-constructor-fields super super-constructor-fields super-keywords super-defaults)
@@ -482,7 +484,7 @@
          [(and (pair? fields) (identifier? (field-desc-constructor-arg (car fields)))) ; not in constructor
           (loop (cdr all-fields) (cdr fields) rev-fields rev-keywords rev-defaults)]
          [else ; public field in constructor
-          (define-values (f k d) (field-to-field+keyword+default (car fields) (field-desc-constructor-arg (car fields))))
+          (define-values (f a m k d) (field-to-field+keyword+default (car fields) (field-desc-constructor-arg (car fields))))
           (loop (cdr all-fields) (cdr fields) (cons f rev-fields) (cons k rev-keywords) (cons d rev-defaults))]))]
     [else
      (values super-constructor-fields super-keywords super-defaults)]))

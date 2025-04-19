@@ -118,7 +118,10 @@
                                              super
                                              given-constructor-rhs
                                              constructor-keywords constructor-defaults
+                                             constructor-accessors constructor-mutables
                                              constructor-private-keywords constructor-private-defaults
+                                             constructor-private-accessors constructor-private-mutables
+                                             auto-constructor?
                                              names
                                              #:veneer? [veneer? #f])
   (with-syntax ([(name constructor-name name-instance
@@ -143,9 +146,28 @@
                            [veneer? #'2]
                            [else (summarize-arity constructor-keywords
                                                   constructor-defaults
-                                                  #f #f)])])
+                                                  #f #f)])]
+                        [(dep-result ...)
+                         (if auto-constructor?
+                             (with-syntax ([pos+accessors
+                                            (for/fold ([i 0] [l null] #:result l)
+                                                      ([kw (in-list constructor-keywords)]
+                                                       [accessor (in-list constructor-accessors)]
+                                                       [mutable? (in-list constructor-mutables)])
+                                              (values (if (and kw (syntax-e kw))
+                                                          i
+                                                          (add1 i))
+                                                      (if (not (if (syntax? mutable?) (syntax-e mutable?) mutable?))
+                                                          (cons (if (and kw (syntax-e kw))
+                                                                    (list kw accessor)
+                                                                    (list i accessor))
+                                                                l)
+                                                          l)))])
+                               #'((#%dependent-result (select-for-constructor pos+accessors))))
+                             null)])
             #'(define-static-info-syntax constructor-name
-                (#%call-result ((#%dot-provider dot-providers)
+                (#%call-result (dep-result ...
+                                (#%dot-provider dot-providers)
                                 . indirect-static-infos))
                 (#%function-arity arity-mask)
                 . #,(get-function-static-infos))))
@@ -206,3 +228,19 @@
                               #'())
                           accessor-id)
       #'()))
+
+(define-syntax (select-for-constructor data deps)
+  (for/fold ([si #'()]) ([d (in-list (syntax->list data))])
+    (syntax-parse d
+      [(pos-stx accessor-id)
+       (define pos (syntax-e #'pos-stx))
+       (define new-si
+         (cond
+           [(keyword? pos)
+            (hash-ref (annotation-dependencies-kw-args deps) pos #'())]
+           [(pos . < . (length (annotation-dependencies-args deps)))
+            (list-ref (annotation-dependencies-args deps) pos)]
+           [else #'()]))
+       (if (static-infos-empty? new-si)
+           si
+           #`((accessor-id  #,new-si) . #,si))])))

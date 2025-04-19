@@ -46,8 +46,25 @@
   #:methods
   ())
 
+(define-syntax (select-for-constructor data deps)
+  (define args (annotation-dependencies-args deps))
+  (define car-si (or (and (< 0 (length args))
+                          (list-ref args 0))
+                     #'()))
+  (define cdr-si (or (and (< 1 (length args))
+                          (list-ref args 1))
+                     #'()))
+  (append
+   (if (static-infos-empty? car-si)
+       null
+       (list #`(car #,car-si)))
+   (if (static-infos-empty? cdr-si)
+       null
+       (list #`(cdr #,cdr-si)))))
+
 (define/arity #:name Pair (Pair.cons a d)
-  #:static-infos ((#%call-result #,(get-pair-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-for-constructor #f))
+                                  #,@(get-pair-static-infos))))
   (cons a d))
 
 (define-syntax (select-field data deps)

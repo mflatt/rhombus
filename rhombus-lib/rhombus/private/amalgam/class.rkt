@@ -115,7 +115,7 @@
        (define super (and parent-name
                           (or (syntax-local-value* (in-class-desc-space parent-name) class-desc-ref)
                               (raise-syntax-error #f "not a class name" #'orig-stx parent-name))))
-       (define-values (super-constructor-fields super-keywords super-defaults)
+       (define-values (super-constructor-fields super-accessors super-mutators super-keywords super-defaults)
          (extract-super-constructor-fields super))
 
        (define interface-names (reverse (hash-ref options 'implements '())))
@@ -345,12 +345,18 @@
        (define constructor-keywords (syntax->list #'(constructor-field-keyword ...)))
        (define constructor-defaults (syntax->list #'(constructor-field-default ...)))
        (define constructor-static-infoss (syntax->list #'(constructor-field-static-infos ...)))
+       (define constructor-field-names (syntax->list #'(constructor-field-name ...)))
+       (define constructor-mutables (syntax->list #'(constructor-field-mutable ...)))
        (define-values (constructor-public-fields constructor-private-fields)
          (partition-fields constructor-fields constructor-exposures #:result values))
        (define-values (constructor-public-keywords constructor-private-keywords)
          (partition-fields constructor-keywords constructor-exposures #:result values))
        (define-values (constructor-public-defaults constructor-private-defaults)
          (partition-fields constructor-defaults constructor-exposures #:result values))
+       (define-values (constructor-public-field-names constructor-private-field-names)
+         (partition-fields constructor-field-names constructor-exposures #:result values))
+       (define-values (constructor-public-mutables constructor-private-mutables)
+         (partition-fields constructor-mutables constructor-exposures #:result values))
        (define constructor-converters (syntax->list #'(constructor-field-converter ...)))
        (define constructor-annotation-strs (map syntax-e (syntax->list #'(constructor-field-annotation-str ...))))
 
@@ -365,7 +371,7 @@
                                  (any-stx? constructor-defaults)
                                  (for/or ([converter (in-list constructor-converters)])
                                    (and (syntax-e converter) #t))))
-       (define-values (super-constructor-fields super-keywords super-defaults)
+       (define-values (super-constructor-fields super-accessors super-mutators super-keywords super-defaults)
          (extract-super-constructor-fields super))
        (define-values (super-constructor+-fields super-constructor+-keywords super-constructor+-defaults)
          ;; The "constructor+" list corresponds to private+protected fields in the internal constructor as well
@@ -759,8 +765,13 @@
                                               given-constructor-rhs)
                                          (append super-keywords constructor-public-keywords)
                                          (append super-defaults constructor-public-defaults)
+                                         (append super-accessors (syntax->list #'(constructor-public-name-field ...)))
+                                         (append super-mutators constructor-public-mutables)
                                          (append super-keywords constructor-private-keywords)
                                          (append super-defaults constructor-private-defaults)
+                                         (append super-accessors (syntax->list #'(constructor-name-field ...)))
+                                         (append super-mutators constructor-private-mutables)
+                                         (eq? constructor-rhs 'synthesize)
                                          #'(name constructor-name name-instance
                                                  internal-name-instance make-internal-name
                                                  indirect-static-infos

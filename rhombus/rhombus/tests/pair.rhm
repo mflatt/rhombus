@@ -180,6 +180,6 @@ block:
 // dependent result annotations
 block:
   use_static
-  def p :: Pair.of(String, Bytes) = Pair("a", #"bb")
+  def p = Pair("a", #"bb")
   check Pair.first(p).length() ~is 1
   check Pair.rest(p).length() ~is 2
