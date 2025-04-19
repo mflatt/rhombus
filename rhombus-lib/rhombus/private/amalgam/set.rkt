@@ -437,11 +437,12 @@
 (define-for-syntax (parse-set stx arg-stxes repetition? set-build-id set-build*-id set-for-form)
   (syntax-parse stx
     [(form-id (~and content (_::braces . _)) . tail)
-     (define-values (shape argss) (parse-setmap-content #'content
-                                                        #:set-for-form set-for-form
-                                                        #:shape 'set
-                                                        #:who (syntax-e #'form-id)
-                                                        #:repetition? repetition?))
+     (define-values (shape argss k-static-infos v-static-infos)
+       (parse-setmap-content #'content
+                             #:set-for-form set-for-form
+                             #:shape 'set
+                             #:who (syntax-e #'form-id)
+                             #:repetition? repetition?))
      (values (relocate-wrapped
               (respan (datum->syntax #f (append (list #'form-id) arg-stxes (list #'content))))
               (build-setmap stx argss
@@ -449,7 +450,10 @@
                             #'set-extend*
                             #'set-append
                             #'set-assert
-                            (get-set-static-infos)
+                            (if (static-infos-empty? k-static-infos)
+                                (get-set-static-infos)
+                                #`((#%sequence-element #,k-static-infos)
+                                   #,@(get-set-static-infos)))
                             #:repetition? repetition?
                             #:rep-for-form #'for/setalw))
              #'tail)]
@@ -765,7 +769,7 @@
 (define-for-syntax (parse-mutable-set stx repetition? mutable-set-build-id)
   (syntax-parse stx
     [(form-id (~and content (_::braces . _)) . tail)
-     (define-values (shape argss)
+     (define-values (shape argss k-static-infos v-static-infos)
        (parse-setmap-content #'content
                              #:shape 'set
                              #:who (syntax-e #'form-id)

@@ -357,11 +357,12 @@
 (define-for-syntax (parse-map stx arg-stxes repetition? map-build-id map-pair-build-id rep-for-form)
   (syntax-parse stx
     [(form-id (~and content (_::braces . _)) . tail)
-     (define-values (shape argss) (parse-setmap-content #'content
-                                                        #:map-for-form rep-for-form
-                                                        #:shape 'map
-                                                        #:who (syntax-e #'form-id)
-                                                        #:repetition? repetition?))
+     (define-values (shape argss k-static-infos v-static-infos)
+       (parse-setmap-content #'content
+                             #:map-for-form rep-for-form
+                             #:shape 'map
+                             #:who (syntax-e #'form-id)
+                             #:repetition? repetition?))
      (values (relocate-wrapped
               (respan (datum->syntax #f (append (list #'form-id) arg-stxes (list #'content))))
               (build-setmap stx argss
@@ -369,7 +370,11 @@
                             #'hash-extend*
                             #'hash-append
                             #'hash-assert
-                            (get-map-static-infos)
+                            (if (and (static-infos-empty? k-static-infos)
+                                     (static-infos-empty? v-static-infos))
+                                (get-map-static-infos)
+                                #`((#%sequence-element ((#%values (#,k-static-infos #,v-static-infos))))
+                                   #,@(get-map-static-infos)))
                             #:repetition? repetition?
                             #:rep-for-form rep-for-form))
              #'tail)]
@@ -740,7 +745,7 @@
 (define-for-syntax (parse-mutable-map stx repetition? map-build-id mutable-map-build-id map-copy-id)
   (syntax-parse stx
     [(form-id (~and content (_::braces . _)) . tail)
-     (define-values (shape argss)
+     (define-values (shape argss k-static-infos v-static-infos)
        (parse-setmap-content #'content
                              #:shape 'map
                              #:who (syntax-e #'form-id)
@@ -1106,10 +1111,8 @@
                     (values null null))]
                [else
                 (values #'k #'v)]))
-           (if (and (or (null? new-k)
-                        (and (syntax? new-k) (null? (syntax-e new-k))))
-                    (or (null? new-v)
-                        (and (syntax? new-v) (null? (syntax-e new-v)))))
+           (if (and (static-infos-empty? new-k)
+                    (static-infos-empty? new-v))
                #`()
                #`((#%sequence-element ((#%values (#,new-k #,new-v))))))]
           [else

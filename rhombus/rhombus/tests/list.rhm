@@ -944,3 +944,33 @@ block:
   check (for List (e in los.to_sequence()): e.length()) ~is [1, 1, 1]
   def mlos :: MutableList.later_of(String) = MutableList["a", "b", "c"]
   check mlos.snapshot().get(0).length() ~is 1
+  check ["a1", "b"][0].length() ~is 2
+  let [x, ...] = ["a", "b"]
+  check [x, ...][0].length() ~is 1
+  check ["zzzz", x, ...][0].length() ~is 4
+  check ["a1", "b", & ["ccccc"]][2].length() ~is 5
+
+check:
+  ~eval
+  use_static
+  ["a1", "b", #"no"][0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")
+
+check:
+  ~eval
+  use_static
+  ["a1", "b", & ["c", #"no"]][0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")
+
+check:
+  ~eval
+  use_static
+  def [x, ...] = [1]
+  ["a1", "b", x, ...][0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")

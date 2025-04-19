@@ -1559,7 +1559,7 @@ block:
 // dependent result annotations
 block:
   use_static
-  def m :: Map.of(String, Bytes) = { "a" : #"bb" }
+  def m = { "a" : #"bb" }
   check m["a"].length() ~is 2
   check m.get("a").length() ~is 2
   check m.keys()[0].length() ~is 1
@@ -1576,6 +1576,13 @@ block:
   check mm.snapshot().values()[0].length() ~is 2
   check m.snapshot().keys()[0].length() ~is 1
   check m.snapshot().values()[0].length() ~is 2
+  def m2 = { "a": #"bb", & { "c": #"ddd" } }
+  check m2.get("a").length() ~is 2
+  check m2.keys()[0].length() ~is 1
+  let [str, ...] = ["x", "y"]
+  let [bstr, ...] = [#"00", #"11"]
+  check { str: bstr, ...}.keys()[0].length() ~is 1
+  check { str: bstr, ...}.values()[0].length() ~is 2
 
 check:
   ~eval
@@ -1591,6 +1598,24 @@ check:
   use_static
   def m :: Map.of(String, Bytes) = { "a" : #"bb" }
   m.set("x", "y").values()[0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")
+
+check:
+  ~eval
+  use_static
+  def m = { "a" : #"bb", "c": 0 }
+  m.values()[0].length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")
+
+check:
+  ~eval
+  use_static
+  def m = { "a" : #"bb", #'c: #"x" }
+  m.keys()[0].length()
   ~throws values("length",
                  "no such field or method",
                  "based on static information")

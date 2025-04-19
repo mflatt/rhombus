@@ -309,8 +309,7 @@
                                    (list-ref args elem-i))
                               #'()))
           (static-infos-or lst-si elem-si)]))
-     (if (or (pair? si)
-             (and (syntax? si) (pair? (syntax-e si))))
+     (if (not (static-infos-empty? si))
          #`((#%index-result #,si)
             #,@res-statinfos)
          res-statinfos)]))
@@ -469,8 +468,9 @@
   (mutable-treelist-reverse! l))
 
 ;; used to define `List` and `PairList` further below:
-(define-for-syntax (make-constructor proc-stx build-form get-static-infos wrap-static-infos
+(define-for-syntax (make-constructor proc-stx build-form get-static-infos
                                      #:repetition? [repetition? #f]
+                                     #:mutable? [mutable? #f]
                                      #:rep-for-form rep-for-form
                                      #:rep-solo-for-form [rep-solo-for-form rep-for-form])
   ;; special cases optimize for `...` and `&`; letting it expand
@@ -484,25 +484,28 @@
        #:when (if repetition?
                   (normal-call-repetition? #'tag)
                   (normal-call? #'tag))
-       (parse-*list-form stx build-form (get-static-infos) wrap-static-infos
+       (parse-*list-form stx build-form (get-static-infos)
                          #:rep-for-form rep-for-form
                          #:rep-solo-for-form rep-solo-for-form
                          #:repetition? repetition?
+                         #:mutable? mutable?
                          #:span-form-name? #t)]
       [(form-id (tag::parens _ ... (group _::&-expr _ ...)) . tail)
        #:when (if repetition?
                   (normal-call-repetition? #'tag)
                   (normal-call? #'tag))
-       (parse-*list-form stx build-form (get-static-infos) wrap-static-infos
+       (parse-*list-form stx build-form (get-static-infos)
                          #:rep-for-form rep-for-form
                          #:rep-solo-for-form rep-solo-for-form
                          #:repetition? repetition?
+                         #:mutable? mutable?
                          #:span-form-name? #t)]
       [(form-id (tag::brackets _ ...) . tail)
-       (parse-*list-form stx build-form (get-static-infos) wrap-static-infos
+       (parse-*list-form stx build-form (get-static-infos)
                          #:rep-for-form rep-for-form
                          #:rep-solo-for-form rep-solo-for-form
                          #:repetition? repetition?
+                         #:mutable? mutable?
                          #:span-form-name? #t)]
       [(form-id . tail)
        (values (if repetition?
@@ -1328,15 +1331,6 @@
            [i (in-naturals)])
     (and (pred v) i)))
 
-(define-for-syntax (wrap-treelist-static-info expr)
-  (wrap-static-info* expr (get-treelist-static-infos)))
-
-(define-for-syntax (wrap-list-static-info expr)
-  (wrap-static-info* expr (get-list-static-infos)))
-
-(define-for-syntax (wrap-mutable-treelist-static-info expr)
-  (wrap-static-info* expr (get-mutable-treelist-static-infos)))
-
 ;; parses a list pattern that has already been checked for use with a
 ;; suitable `parens` or `brackets` form
 (define-for-syntax (parse-*list-binding stx generate-binding make-rest-selector static-infos
@@ -1500,34 +1494,43 @@
 (define-for-syntax (parse-*list-form stx
                                      build-form
                                      static-infos
-                                     wrap-static-info
                                      #:rep-for-form rep-for-form
                                      #:rep-solo-for-form rep-solo-for-form
                                      #:repetition? repetition?
+                                     #:mutable? [mutable? #f]
                                      #:span-form-name? span-form-name?)
   (syntax-parse stx
     #:datum-literals (group)
     [(form-id (~and args (tag arg ...)) . tail)
      ;; a list of syntax, (list-rest-splice syntax), or (list-rest-rep syntax):
      (define solo? (= 2 (length (syntax->list #'(arg ...)))))
-     (define content
+     (define (combine-static-infos new-si si)
+       (cond
+         [(not si) new-si]
+         [(static-infos-empty? si) si]
+         [else (static-infos-or new-si si)]))
+     (define-values (content elem-static-infos)
        (let loop ([gs-stx #'(arg ...)])
          (syntax-parse gs-stx
            #:datum-literals (group)
-           [() '()]
+           [() (values '() (if mutable? #'() #f))]
            [(rep-arg (group _::...-expr) . gs)
             (define-values (new-gs extras) (consume-extra-ellipses #'gs))
-            (define e (syntax-parse #'rep-arg
-                        [rep::repetition
-                         (define the-rep (flatten-repetition #'rep.parsed extras))
-                         (if repetition?
+            (define-values (e si)
+              (syntax-parse #'rep-arg
+                [rep::repetition
+                 (define the-rep (flatten-repetition #'rep.parsed extras))
+                 (values (if repetition?
                              the-rep
                              (render-repetition (if solo?
                                                     rep-solo-for-form
                                                     rep-for-form)
-                                                the-rep))]))
-            (cons (list-rest-rep e)
-                  (loop new-gs))]
+                                                the-rep))
+                         (syntax-parse #'rep.parsed
+                           [rep::repetition-info #'rep.element-static-infos]))]))
+            (define-values (content elem-static-infos) (loop new-gs))
+            (values (cons (list-rest-rep e) content)
+                    (combine-static-infos si elem-static-infos))]
            [((~or* (~and (group _::&-expr rand ...+)
                          (~parse g #`(#,group-tag rand ...))
                          (~bind [splice? #t]))
@@ -1537,30 +1540,48 @@
                           (syntax-parse #'g
                             [rep::repetition #'rep.parsed])
                           (syntax-parse #'g
-                            [e::expression #'e.parsed])))
-            (cons (if (attribute splice?)
-                      (list-rest-splice e)
-                      e)
-                  (loop #'gs))])))
+                            [e::expression (rhombus-local-expand #'e.parsed)])))
+            (define-values (content elem-static-infos) (loop #'gs))
+            (values (cons (if (attribute splice?)
+                              (list-rest-splice e)
+                              e)
+                          content)
+                    (combine-static-infos
+                     (let ([si (if repetition?
+                                   (syntax-parse e
+                                     [rep::repetition-info #'rep.element-static-infos])
+                                   (extract-static-infos e))])
+                       (if (attribute splice?)
+                           (or (static-info-lookup si #'#%index-result)
+                               #'())
+                           si))
+                     elem-static-infos))])))
      (define src-span (if span-form-name?
                           (respan (datum->syntax #f (list #'form-id #'args)))
                           (maybe-respan #'args)))
      (define (tag-props stx) (datum->syntax stx (syntax-e stx) stx #'tag))
+     (define all-static-infos
+       (let ([elem-static-infos (or elem-static-infos #'())])
+         (if (static-infos-empty? elem-static-infos)
+             static-infos
+             #`((#%index-result #,elem-static-infos)
+                #,@static-infos))))
      (values
       (relocate-wrapped
        src-span
        (cond
          [(and (pair? content) (null? (cdr content))
                (list-rest-rep? (car content)))
-          ;; special case, especially to expose static info on rest elements
+          ;; special case, originally especially to expose static info on rest elements
           (define seq (list-rest-syntax (car content)))
           (cond
             [repetition? (consume-repetition seq rep-solo-for-form static-infos)]
-            [else (wrap-static-info seq)])]
+            [else (wrap-static-info* seq static-infos)])]
          [(not repetition?)
-          (wrap-static-info
+          (wrap-static-info*
            (tag-props
-            (build-form content)))]
+            (build-form content))
+           all-static-infos)]
          [else
           (build-compound-repetition
            stx
@@ -1576,7 +1597,7 @@
                                 [(list-rest-rep? e) (list-rest-rep new-e)]
                                 [else new-e]))])
                (values (tag-props (build-form content))
-                       static-infos))))]))
+                       all-static-infos))))]))
       #'tail)]))
 
 (define-for-syntax (build-*list-form content *list-stx empty-*list-stx *list-append-stx
@@ -1622,43 +1643,45 @@
 
 (define-syntax List
   (expression-transformer
-   (make-constructor #'treelist build-treelist-form get-treelist-static-infos wrap-treelist-static-info
+   (make-constructor #'treelist build-treelist-form get-treelist-static-infos
                      #:rep-for-form #'for/treelist)))
 (define-syntax PairList
   (expression-transformer
-   (make-constructor #'list build-list-form get-list-static-infos wrap-list-static-info
+   (make-constructor #'list build-list-form get-list-static-infos
                      #:rep-for-form #'for/list)))
 (define-syntax MutableList
   (expression-transformer
-   (make-constructor #'mutable-treelist build-mutable-treelist-form get-mutable-treelist-static-infos wrap-mutable-treelist-static-info
+   (make-constructor #'mutable-treelist build-mutable-treelist-form get-mutable-treelist-static-infos
+                     #:mutable? #t
                      #:rep-for-form #'for/treelist
                      #:rep-solo-for-form #'for/mutable-treelist)))
 
 (define-repetition-syntax List
   (repetition-transformer
    (make-constructor #:repetition? #t
-                     #'treelist build-treelist-form get-treelist-static-infos wrap-treelist-static-info
+                     #'treelist build-treelist-form get-treelist-static-infos
                      #:rep-for-form #'for/treelist)))
 (define-repetition-syntax PairList
   (repetition-transformer
    (make-constructor #:repetition? #t
-                     #'list build-list-form get-list-static-infos wrap-list-static-info
+                     #'list build-list-form get-list-static-infos
                      #:rep-for-form #'for/list)))
 (define-repetition-syntax MutableList
   (repetition-transformer
    (make-constructor #:repetition? #t
-                     #'mutable-treelist build-mutable-treelist-form get-mutable-treelist-static-infos wrap-mutable-treelist-static-info
+                     #'mutable-treelist build-mutable-treelist-form get-mutable-treelist-static-infos
+                     #:mutable? #t
                      #:rep-for-form #'for/mutable-treelist)))
 
 (define-for-syntax (parse-list-expression stx)
-  (parse-*list-form stx build-treelist-form (get-treelist-static-infos) wrap-treelist-static-info
+  (parse-*list-form stx build-treelist-form (get-treelist-static-infos)
                     #:rep-for-form #'for/treelist
                     #:rep-solo-for-form #'for/treelist
                     #:repetition? #f
                     #:span-form-name? #f))
 
 (define-for-syntax (parse-list-repetition stx)
-  (parse-*list-form stx build-treelist-form (get-treelist-static-infos) wrap-treelist-static-info
+  (parse-*list-form stx build-treelist-form (get-treelist-static-infos)
                     #:rep-for-form #'for/treelist
                     #:rep-solo-for-form #'for/treelist
                     #:repetition? #t

@@ -42,7 +42,8 @@
            static-infos-result-and
            static-infos-remove
            get-dependent-result-proc
-           get-empty-static-infos))
+           get-empty-static-infos
+           static-infos-empty?))
 
 (provide define-static-info-getter
          define-static-info-syntax
@@ -273,6 +274,9 @@
 
 (define-static-info-getter get-empty-static-infos)
 
+(define-for-syntax (static-infos-empty? si)
+  (or (null? si) (and (syntax? si) (null? (syntax-e si)))))
+
 (define-for-syntax (flatten-indirects as)
   (and as
        (for*/list ([a (in-list as)]
@@ -298,8 +302,8 @@
      (let ([as (flatten-indirects (if (syntax? as) (syntax->list as) as))]
            [bs (flatten-indirects (if (syntax? bs) (syntax->list bs) bs))])
        ;; special generalization of `maybe`
-       (define ma (static-info-lookup as (quote-syntax #%maybe)))
-       (define mb (static-info-lookup bs (quote-syntax #%maybe)))
+       (define ma (and as (static-info-lookup as (quote-syntax #%maybe))))
+       (define mb (and bs (static-info-lookup bs (quote-syntax #%maybe))))
        (let ([as (if (and mb (not ma))
                      (cons #`(#%maybe #,as) as)
                      as)]

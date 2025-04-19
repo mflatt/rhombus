@@ -1290,7 +1290,7 @@
                                                            #,rator-arity)
                                     extra-args)))]
                        [fun (wrap-static-info* fun (indirect-get-function-static-infos))]
-                       [fun (if (or (null? static-infos) (and (syntax? static-infos) (null? (syntax-e static-infos))))
+                       [fun (if (static-infos-empty? static-infos)
                                 fun
                                 (wrap-static-info fun #'#%call-result static-infos))]
                        [fun (wrap-static-info fun #'#%function-arity arity)])
@@ -1523,6 +1523,7 @@
                    (if kwrsts
                        (list (syntax-parse kwrsts [rep::repetition #'rep.parsed]))
                        null))])
+       (define orig-args args)
        (build-compound-repetition
         rator
         (append extra-rands args)
@@ -1553,7 +1554,7 @@
                    [(index . < . n)
                     (extract-static-infos (list-ref extra-rands index))]
                    [else
-                    (syntax-parse (list-ref args (- index n))
+                    (syntax-parse (list-ref orig-args (- index n))
                       [rep::repetition-info
                        (repetition-extract-static-infos #'rep.element-static-infos)])])))))))]))
 
