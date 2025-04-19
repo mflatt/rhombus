@@ -328,19 +328,19 @@
      (syntax-parse stx
        #:datum-literals (group)
        [(_ #:none)
-        (wrap-class-clause #`(#:constructor #f #:none))]
+        (wrap-class-clause #`(#:constructor #f opaque #:none))]
        [(_ (_::block (group #:none)))
-        (wrap-class-clause #`(#:constructor #f #:none))]
+        (wrap-class-clause #`(#:constructor #f opaque #:none))]
        [(_ #:error)
-        (wrap-class-clause #`(#:constructor #f #:error))]
+        (wrap-class-clause #`(#:constructor #f opaque #:error))]
        [(_ (_::block (group #:error)))
-        (wrap-class-clause #`(#:constructor #f #:error))]
+        (wrap-class-clause #`(#:constructor #f opaque #:error))]
        [(_ id:identifier (~and args (_::parens . _)) ret ...
            (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor id (block (group fun args ret ... rhs))))]
+        (wrap-class-clause #`(#:constructor id transparent (block (group fun args ret ... rhs))))]
        [(_ (~and args (_::parens . _)) ret ...
            (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor #f (block (group fun args ret ... rhs))))]
+        (wrap-class-clause #`(#:constructor #f transparent (block (group fun args ret ... rhs))))]
        [(_ (~and rhs (_::alts
                       (_::block id:identifier (group (_::parens . _) ret ...
                                                      (_::block . _)))
@@ -349,16 +349,16 @@
         (for ([idx (in-list (syntax->list #'(idx ...)))])
           (unless (bound-identifier=? idx #'id0)
             (raise-syntax-error #f "inconsistent name identifier" stx idx)))
-        (wrap-class-clause #`(#:constructor id0 (block (group fun rhs))))]
+        (wrap-class-clause #`(#:constructor id0 transparent (block (group fun rhs))))]
        [(_ (~and rhs (_::alts
                       (_::block (group (_::parens . _) ret ...
                                        (_::block . _)))
                       ...+)))
-        (wrap-class-clause #`(#:constructor #f (block (group fun rhs))))]
+        (wrap-class-clause #`(#:constructor #f transparent (block (group fun rhs))))]
        [(_ id:identifier (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor id rhs))]
+        (wrap-class-clause #`(#:constructor id opaque rhs))]
        [(_ (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor #f rhs))]))))
+        (wrap-class-clause #`(#:constructor #f opaque rhs))]))))
 
 (define-class-clause-syntax reconstructor
   (class-clause-transformer

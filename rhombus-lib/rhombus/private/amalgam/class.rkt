@@ -409,9 +409,16 @@
                                                         (syntax-e field)))
                                 field)))))
 
+       (define-values (given-constructor-rhs/expanded constructor-result-static-infos)
+         (if (and given-constructor-rhs
+                  (not (constructor-as-expression? given-constructor-rhs))
+                  (hash-ref options 'constructor-transparent? #f))
+             (expand-constructor-result-annotations given-constructor-rhs)
+             (values given-constructor-rhs #'())))
+
        (define constructor-rhs
          (or (and (not (constructor-as-expression? given-constructor-rhs))
-                  given-constructor-rhs)
+                  given-constructor-rhs/expanded)
              (and (or has-private-constructor-fields?
                       (and super
                            (class-desc-constructor-makers super)))
@@ -772,6 +779,7 @@
                                          (append super-accessors (syntax->list #'(constructor-name-field ...)))
                                          (append super-mutators constructor-private-mutables)
                                          (eq? constructor-rhs 'synthesize)
+                                         constructor-result-static-infos
                                          #'(name constructor-name name-instance
                                                  internal-name-instance make-internal-name
                                                  indirect-static-infos

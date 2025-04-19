@@ -53,6 +53,7 @@
                      build-methods
 
                      expand-case-result-annotations
+                     expand-constructor-result-annotations
 
                      get-private-table
                      objects-desc-ref)
@@ -413,6 +414,44 @@
           sym)
         symbol<?))
 
+(define-for-syntax (expand-case-result-annotation e old-k new-k)
+  ;; build an annotation lifted to the declaration level that unions
+  ;; static info from the cases
+  (syntax-parse e
+    #:datum-literals (group)
+    [(_::block (group fun-id
+                      (_::alts)))
+     ;; no alternaitives(?), so nothing to merge
+     (old-k)]
+    [(_::block (group fun-id
+                      (_::alts
+                       (_::block (group a-id (_::parens . _) (_::block . _)))
+                       ...)))
+     ;; no result annotations, anyway
+     (old-k)]
+    [(btag0::block ((~and gtag0 group) fun-id
+                                       (atag::alts
+                                        (btag::block ((~and gtag group)
+                                                      args
+                                                      (~var ret (:ret-annotation/prepass (parse-arg-context #:this? #t #'args)))
+                                                      body))
+                                        ...)))
+     (define static-infoss (syntax->list #'(ret.static-infos ...)))
+     (define static-infos
+       (for/fold ([static-infos (car static-infoss)]) ([si (in-list (cdr static-infoss))])
+         (static-infos-or static-infos si)))
+     (define synthesized-annot
+       (cond
+         [(or (null? static-infos)
+              (and (syntax? static-infos) (null? (syntax-e static-infos))))
+          #'()]
+         [else
+          #`(:~ (parsed #:rhombus/annot #,(annotation-predicate-form #'(lambda xs #t) static-infos)))]))
+     (new-k static-infos
+            synthesized-annot
+            #'(btag0 (gtag0 fun-id (atag (btag (gtag args (~@ . ret.ret) body))
+                                         ...))))]))
+
 (define-for-syntax (expand-case-result-annotations added-methods final?)
   ;; If a final method has cases and no overall result annotation, then expand the
   ;; annotationn on each case just once, and then we can use it for both the cases
@@ -425,43 +464,32 @@
             (syntax-parse (added-method-maybe-ret added)
               [(args ()) #t]
               [_ #f]))
-       ;; build create an annotation lifted to the declaration level that unions
-       ;; static info from the cases
-       (syntax-parse (added-method-rhs added)
-         #:datum-literals (group)
-         [(_::block (group fun-id
-                           (_::alts)))
-          ;; no alternaitives(?), so nothing to merge
-          added]
-         [(_::block (group fun-id
-                           (_::alts
-                            (_::block (group a-id (_::parens . _) (_::block . _)))
-                            ...)))
-          ;; no result annotations, anyway
-          added]
-         [(btag0::block ((~and gtag0 group) fun-id
-                                            (atag::alts
-                                             (btag::block ((~and gtag group)
-                                                           args
-                                                           (~var ret (:ret-annotation/prepass (parse-arg-context #:this? #t #'args)))
-                                                           body))
-                                             ...)))
-          (define static-infoss (syntax->list #'(ret.static-infos ...)))
-          (define static-infos
-            (for/fold ([static-infos (car static-infoss)]) ([si (in-list (cdr static-infoss))])
-              (static-infos-or static-infos si)))
-          (define synthesized-annot
-            (cond
-              [(or (null? static-infos)
-                   (and (syntax? static-infos) (null? (syntax-e static-infos))))
-               #'()]
-              [else
-               #`(:~ (parsed #:rhombus/annot #,(annotation-predicate-form #'(lambda xs #t) static-infos)))]))
+       (expand-case-result-annotation
+        (added-method-rhs added)
+        (lambda () added)
+        (lambda (static-infos synthesized-annot new-rhs)
           (struct-copy added-method added
                        [maybe-ret #`[(parens) #,synthesized-annot]]
-                       [rhs #'(btag0 (gtag0 fun-id (atag (btag (gtag args (~@ . ret.ret) body))
-                                                         ...)))])])]
+                       [rhs new-rhs])))]
       [else added])))
+
+(define-for-syntax (expand-constructor-result-annotations constructor-rhs)
+  ;; The constructor is an immediate `fun` form, and we want to expand its
+  ;; result annotation once, similar to `expand-case-result-annotations`
+  (syntax-parse constructor-rhs
+    #:datum-literals (block group)
+    [(block (group fun-id (_::alts ...)))
+     (expand-case-result-annotation
+      constructor-rhs
+      (lambda () (values constructor-rhs #'()))
+      (lambda (static-infos synthesized-annot new-rhs)
+        (values new-rhs static-infos)))]
+    [(block (group fun-id args
+                   (~var ret (:ret-annotation/prepass (parse-arg-context #'args)))
+                   (~and body (_::block . _))))     
+     (values #`(block (group fun-id args (~@ . ret.ret) body))
+             #'ret.static-infos)]
+    [_ (values constructor-rhs #'())]))
 
 (define-for-syntax (build-method-results added-methods
                                          method-mindex method-vtable method-private
@@ -479,7 +507,7 @@
                                          #:checked-compare? [checked-compare? #t])
   (define defs
     (for/list ([added (in-list added-methods)])
-      #`(define-method-result #,(added-method-result-id added)
+      #`(define-method-result #,(added-method-result-id added)          
           #,(added-method-maybe-ret added)
           #,(cdr (hash-ref method-results (syntax-e (added-method-id added)) '(none)))
           ;; Also add static info as #%call-result to binding; use the method-result id

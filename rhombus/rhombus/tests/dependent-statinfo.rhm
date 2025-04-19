@@ -51,6 +51,12 @@ check:
   ~throws values("no such field or method",
                  "based on static information")
 
+block:
+  class Posn(x, y):
+    constructor (y) :: Posn.of(Any, Any.like(y)):
+      super(0, y)
+  check Posn("apple").y.length() ~is 5
+
 annot.macro 'ToAnyLike($id, ...)':
   ~context ctx
   let map:

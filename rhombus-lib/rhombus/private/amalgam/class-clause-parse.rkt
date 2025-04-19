@@ -114,14 +114,18 @@
                (add-implements options 'protected-implements #'(id ...))]
               [(#:internal id)
                (hash-set options 'internals (cons #'id (hash-ref options 'internals '())))]
-              [(#:constructor id rhs)
+              [(#:constructor id opacity rhs)
                (when (hash-has-key? options 'constructor-rhs)
                  (raise-syntax-error #f "multiple constructor clauses" orig-stx clause))
                (define rhs-options (hash-set (hash-set options 'constructor-rhs #'rhs)
                                              'constructor-stx-params (car stx-paramss)))
-               (if (syntax-e #'id)
-                   (hash-set rhs-options 'constructor-name #'id)
-                   rhs-options)]
+               (define rhs+name-options
+                 (if (syntax-e #'id)
+                     (hash-set rhs-options 'constructor-name #'id)
+                     rhs-options))
+               (if (eq? (syntax-e #'opacity) 'transparent)
+                   (hash-set rhs+name-options 'constructor-transparent? #t)
+                   rhs+name-options)]
               [(#:expression rhs)
                (when (hash-has-key? options 'expression-rhs)
                  (raise-syntax-error #f "multiple expression macro clauses" orig-stx clause))

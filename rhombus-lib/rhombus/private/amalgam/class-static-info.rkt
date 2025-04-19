@@ -122,6 +122,7 @@
                                              constructor-private-keywords constructor-private-defaults
                                              constructor-private-accessors constructor-private-mutables
                                              auto-constructor?
+                                             constructor-result-static-infos
                                              names
                                              #:veneer? [veneer? #f])
   (with-syntax ([(name constructor-name name-instance
@@ -164,7 +165,7 @@
                                                                 l)
                                                           l)))])
                                #'((#%dependent-result (select-for-constructor pos+accessors))))
-                             null)])
+                             constructor-result-static-infos)])
             #'(define-static-info-syntax constructor-name
                 (#%call-result (dep-result ...
                                 (#%dot-provider dot-providers)

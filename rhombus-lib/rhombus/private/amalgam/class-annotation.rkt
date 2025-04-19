@@ -157,7 +157,7 @@
             (lambda () #f))]))))
 
 (define-syntax (class-instance-static-infos accessors static-infoss)
-  (for/list ([acc (in-list accessors)]             
+  (for/list ([acc (in-list (if (syntax? accessors) (syntax->list accessors) accessors))]
              [static-infos (in-list static-infoss)]
              #:when acc)
     #`(#,acc #,static-infos)))

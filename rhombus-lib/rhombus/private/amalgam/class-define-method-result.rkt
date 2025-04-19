@@ -121,8 +121,8 @@
                              #:result (if (eqv? all-count 1)
                                           #`#,(car all-static-infoss)
                                           #`((#%values #,all-static-infoss))))
-                            ([infos (in-list (cons static-infos
-                                                   (map method-result-static-infos super-results)))])
+                            ([infos (in-list (append (list static-infos)
+                                                     (map method-result-static-infos super-results)))])
                    (for/list ([infos (in-list (normalize-static-infos/values all-count infos))]
                               [all-static-infos (in-list all-static-infoss)])
                      (static-infos-and infos all-static-infos)))

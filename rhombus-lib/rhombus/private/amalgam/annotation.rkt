@@ -293,7 +293,7 @@
        (unless (eqv? (length unsorted-gs) sub-n)
          (raise-syntax-error #f
                              "wrong number of subannotations in parentheses"
-                             new-stx))
+                             (respan new-stx)))
        (define gs (sort-with-respect-to-keywords kws unsorted-gs new-stx))
        (values new-stx
                gs
