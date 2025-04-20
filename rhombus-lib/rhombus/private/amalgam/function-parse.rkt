@@ -62,6 +62,7 @@
                        :ret-annotation/prepass
                        :maybe-arg-rest
                        :non-...-binding
+                       :values-id
                        check-arg-for-unsafe
                        build-function
                        build-case-function
@@ -398,24 +399,18 @@
 
   ;; like `:ret-annotation`, but just forces parsing of annotations to expose static information
   (define-splicing-syntax-class (:ret-annotation/prepass [ctx empty-annot-context])
-    #:attributes (static-infos ret)
+    #:attributes (static-infos parsed)
     #:description "return annotation"
     #:datum-literals (group)
-    (pattern (~seq ann-op::annotate-op (~optional op::values-id) (~and p (ptag::parens g ...)))
-             #:do [(define gs #'(g ...))]
-             #:with ((~var c (:annotation ctx)) ...) gs
-             #:with (c-parsed::annotation-binding-form ...) #'(c.parsed ...)
-             #:with static-infos #'((#%values (c-parsed.static-infos ...)))
-             #:with ret #'(ann-op (~? op) (ptag (group (parsed #:rhombus/annot c.parsed)) ...)))
     (pattern (~seq ann-op::annotate-op ctc0::not-block ctc::not-block ...)
              #:do [(define annot #`(#,group-tag ctc0 ctc ...))]
              #:with (~var c (:annotation ctx)) (no-srcloc annot)
              #:with c-parsed::annotation-binding-form #'c.parsed
              #:with static-infos #'c-parsed.static-infos
-             #:with ret #'(ann-op (parsed #:rhombus/annot c.parsed)))
+             #:with parsed #'c.parsed)
     (pattern (~seq)
              #:with static-infos #'()
-             #:with ret #'()))
+             #:with parsed #'#f))
 
   (define-splicing-syntax-class :pos-rest
     #:attributes (arg parsed)

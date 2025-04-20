@@ -11,7 +11,8 @@
          "function-arity.rkt"
          "dot-provider-key.rkt"
          "static-info.rkt"
-         "class-able.rkt")
+         "class-able.rkt"
+         "class-forward-annot.rkt")
 
 (provide (for-syntax extract-instance-static-infoss
                      build-instance-static-infos-defs
@@ -121,8 +122,7 @@
                                              constructor-accessors constructor-mutables
                                              constructor-private-keywords constructor-private-defaults
                                              constructor-private-accessors constructor-private-mutables
-                                             auto-constructor?
-                                             constructor-result-static-infos
+                                             auto-constructor? constructor-forward-rets
                                              names
                                              #:veneer? [veneer? #f])
   (with-syntax ([(name constructor-name name-instance
@@ -137,41 +137,51 @@
                  names])
     (append
      (if (syntax-e #'constructor-name)
-         (list
-          (with-syntax ([arity-mask
-                         (cond
-                           [given-constructor-rhs
-                            (syntax-parse given-constructor-rhs
-                              [(_ e-arity::entry-point-shape)
-                               (hash-ref (or (syntax->datum #'e-arity.parsed) #hasheq()) 'arity #f)])]
-                           [veneer? #'2]
-                           [else (summarize-arity constructor-keywords
-                                                  constructor-defaults
-                                                  #f #f)])]
-                        [(dep-result ...)
-                         (if auto-constructor?
-                             (with-syntax ([pos+accessors
-                                            (for/fold ([i 0] [l null] #:result l)
-                                                      ([kw (in-list constructor-keywords)]
-                                                       [accessor (in-list constructor-accessors)]
-                                                       [mutable? (in-list constructor-mutables)])
-                                              (values (if (and kw (syntax-e kw))
-                                                          i
-                                                          (add1 i))
-                                                      (if (not (if (syntax? mutable?) (syntax-e mutable?) mutable?))
-                                                          (cons (if (and kw (syntax-e kw))
-                                                                    (list kw accessor)
-                                                                    (list i accessor))
-                                                                l)
-                                                          l)))])
-                               #'((#%dependent-result (select-for-constructor pos+accessors))))
-                             constructor-result-static-infos)])
-            #'(define-static-info-syntax constructor-name
-                (#%call-result (dep-result ...
-                                (#%dot-provider dot-providers)
-                                . indirect-static-infos))
-                (#%function-arity arity-mask)
-                . #,(get-function-static-infos))))
+         (with-syntax ([arity-mask
+                        (cond
+                          [given-constructor-rhs
+                           (syntax-parse given-constructor-rhs
+                             [(_ e-arity::entry-point-shape)
+                              (hash-ref (or (syntax->datum #'e-arity.parsed) #hasheq()) 'arity #f)])]
+                          [veneer? #'2]
+                          [else (summarize-arity constructor-keywords
+                                                 constructor-defaults
+                                                 #f #f)])])
+           (define-values (dep-results forward-defns)
+             (cond
+               [auto-constructor?
+                (with-syntax ([pos+accessors
+                               (for/fold ([i 0] [l null] #:result l)
+                                         ([kw (in-list constructor-keywords)]
+                                          [accessor (in-list constructor-accessors)]
+                                          [mutable? (in-list constructor-mutables)])
+                                 (values (if (and kw (syntax-e kw))
+                                             i
+                                             (add1 i))
+                                         (if (not (if (syntax? mutable?) (syntax-e mutable?) mutable?))
+                                             (cons (if (and kw (syntax-e kw))
+                                                       (list kw accessor)
+                                                       (list i accessor))
+                                                   l)
+                                             l)))])
+                  (values #'((#%dependent-result (select-for-constructor pos+accessors)))
+                          null))]
+               [else
+                (syntax-parse (merge-forwards #'() constructor-forward-rets #'#t)
+                  [(static-infos _ ([forward-id forward-c-parsed] ...))
+                   (values #'static-infos
+                           (build-forward-annotations #'(forward-id ...)
+                                                      #'(forward-c-parsed ...)))])]))
+           (with-syntax ([(dep-result ...) dep-results])
+             (append
+              forward-defns
+              (list
+               #'(define-static-info-syntax constructor-name
+                   (#%call-result (dep-result ...
+                                   (#%dot-provider dot-providers)
+                                   . indirect-static-infos))
+                   (#%function-arity arity-mask)
+                   . #,(get-function-static-infos))))))
          null)
      (if (and exposed-internal-id
               (syntax-e #'make-internal-name))

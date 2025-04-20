@@ -170,7 +170,7 @@
 (struct added-method (id rhs-id
                          rhs
                          stx-params
-                         has-cases?  ; #t => `rhs` is a `fun` form with cases, possibly with ret annotations
+                         ret-forwards ; #f or #`([maybe-id ret] ...) to represent lifted result annotations
                          maybe-ret   ; #`[args ret-seq] for overall method
                          result-id
                          body        ; 'method, 'abstract

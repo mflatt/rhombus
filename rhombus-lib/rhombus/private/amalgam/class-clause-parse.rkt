@@ -114,7 +114,7 @@
                (add-implements options 'protected-implements #'(id ...))]
               [(#:internal id)
                (hash-set options 'internals (cons #'id (hash-ref options 'internals '())))]
-              [(#:constructor id opacity rhs)
+              [(#:constructor id forward-rets rhs)
                (when (hash-has-key? options 'constructor-rhs)
                  (raise-syntax-error #f "multiple constructor clauses" orig-stx clause))
                (define rhs-options (hash-set (hash-set options 'constructor-rhs #'rhs)
@@ -123,8 +123,8 @@
                  (if (syntax-e #'id)
                      (hash-set rhs-options 'constructor-name #'id)
                      rhs-options))
-               (if (eq? (syntax-e #'opacity) 'transparent)
-                   (hash-set rhs+name-options 'constructor-transparent? #t)
+               (if (syntax-e #'forward-rets)
+                   (hash-set rhs+name-options 'constructor-forward-rets #'forward-rets)
                    rhs+name-options)]
               [(#:expression rhs)
                (when (hash-has-key? options 'expression-rhs)

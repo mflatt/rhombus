@@ -21,6 +21,7 @@
          "var-decl.rkt"
          (only-in "function.rkt" fun)
          (submod "function.rkt" for-method)
+         (only-in (submod "function-parse.rkt" for-build) :values-id)
          "op-literal.rkt"
          "not-block.rkt"
          "realm.rkt")
@@ -176,6 +177,29 @@
         #'f.form]))))
 
 (begin-for-syntax
+  (define (forwarding-annotations main-ret-stx rets-stx)
+    (syntax-parse main-ret-stx
+      [()
+       (for/list ([ret (syntax->list rets-stx)])
+         (syntax-parse ret
+           #:datum-literals (group)
+           [(op::annotate-op (~optional _::values-id) (~and p (_::parens (~and g (group ret-seq ...)) ...)))
+            #:when (attribute op.check?)
+            #:with (id ...) (map relocate+reraw
+                                 (syntax->list #'(g ...))
+                                 (generate-temporaries #'(g ...)))
+            #`((id ...) (op (parens (group id) ...)) ((op ret-seq ...) ...))]
+           [(op::annotate-op . tail)
+            #:when (attribute op.check?)
+            #:with id (relocate+reraw #'tail
+                                      (car (generate-temporaries '(result-ann))))
+            #`((id) (op id) (#,ret))]
+           [_
+            #`((#f) () (#,ret))]))]
+      [_
+       (for/list ([ret (syntax->list rets-stx)])
+         #`(() #,ret ()))]))
+ 
   (define-splicing-syntax-class :maybe-ret
     #:attributes (seq)
     (pattern (~seq op::annotate-op ret::not-block ...)
@@ -211,15 +235,18 @@
                                      (if (attribute main-id) (cons #'main-id a-ids) a-ids)
                                      "name")]
              #:with id (car a-ids)
+             #:with ([forwarding-annot-id forwarding-ret forwarded-ret] ...) (forwarding-annotations #'main-ret.seq #'(ret ...))
              #:with form (wrap-class-clause #`(#,mode id
-                                               (block (group fun (atag (btag (gtag args (~@ . ret) body)) ...)))
-                                               #t
+                                               (block (group fun (atag (btag (gtag args (~@ . forwarding-ret) body)) ...)))
+                                               #,(if (null? (syntax-e #'main-ret.seq))
+                                                     #`([forwarding-annot-id args forwarded-ret] ...)
+                                                     #f)
                                                [(parens) main-ret.seq])))
     (pattern (~seq id:identifier ret::maybe-ret (~and rhs (_::block . _)))
              #:with form (wrap-class-clause #`(#,mode id rhs #f [(parens) ret.seq]))))
   (define-splicing-syntax-class (:method-decl stx mode)
     #:description "method declaration"
-    #:attributes (id rhs maybe-ret has-cases)
+    #:attributes (id rhs maybe-ret forwards)
     #:datum-literals (group)
     (pattern (~seq _ ... (~and b (_::block . _)))
              #:do [(raise-syntax-error #f
@@ -229,16 +256,16 @@
              #:with id #f
              #:with rhs #f
              #:with maybe-ret #'[(parens) ()]
-             #:with has-cases #f)
+             #:with forwards #f)
     (pattern (~seq id:identifier (~and args (tag::parens arg ...)) ret::maybe-ret)
              #:with rhs #'(block (group fun (tag arg ...)
                                         (block (group (parsed #:rhombus/expr (void))))))
              #:with maybe-ret #'[args ret.seq]
-             #:with has-cases #f)
+             #:with forwards #f)
     (pattern (~seq id:identifier ret::maybe-ret)
              #:with rhs #'#f
              #:with maybe-ret #'[(parens) ret.seq]
-             #:with has-cases #f)
+             #:with forwards #f)
     (pattern (~seq (~optional main-id:identifier) ret::maybe-ret
                    (~and alts
                          (atag::alts
@@ -258,10 +285,13 @@
                                      "name")]
              #:with id (car a-ids)
              #:with maybe-ret #'[(parens) ret.seq]
+             #:with ([forwarding-annot-id forwarding-ret forwarded-ret] ...) (forwarding-annotations #'ret.seq #'(case-ret ...))
              #:with rhs #'(block (group fun
-                                        (atag (btag (gtag args (~@ . case-ret) (block (group (parsed #:rhombus/expr (void))))))
+                                        (atag (btag (gtag args (~@ . forwarding-ret) (block (group (parsed #:rhombus/expr (void))))))
                                               ...)))             
-             #:with has-cases #t))
+             #:with forwards (if (null? (syntax-e #'ret.seq))
+                                 #'([forwarding-annot-id args forwarded-ret] ...)
+                                 #'#f)))
   (define-splicing-syntax-class (:property-impl mode)
     #:description "property implementation"
     #:attributes (form)
@@ -328,37 +358,53 @@
      (syntax-parse stx
        #:datum-literals (group)
        [(_ #:none)
-        (wrap-class-clause #`(#:constructor #f opaque #:none))]
+        (wrap-class-clause #`(#:constructor #f #f #:none))]
        [(_ (_::block (group #:none)))
-        (wrap-class-clause #`(#:constructor #f opaque #:none))]
+        (wrap-class-clause #`(#:constructor #f #f #:none))]
        [(_ #:error)
-        (wrap-class-clause #`(#:constructor #f opaque #:error))]
+        (wrap-class-clause #`(#:constructor #f #f #:error))]
        [(_ (_::block (group #:error)))
-        (wrap-class-clause #`(#:constructor #f opaque #:error))]
-       [(_ id:identifier (~and args (_::parens . _)) ret ...
+        (wrap-class-clause #`(#:constructor #f #f #:error))]
+       [(_ id:identifier (~and args (_::parens . _)) ret::maybe-ret
            (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor id transparent (block (group fun args ret ... rhs))))]
-       [(_ (~and args (_::parens . _)) ret ...
+        #:with ([forwarding-annot-id forwarding-ret forwarded-ret]) (forwarding-annotations #'() #'(ret.seq))
+        (wrap-class-clause #`(#:constructor id
+                              ([forwarding-annot-id args forwarded-ret])
+                              (block (group fun args (~@ . forwarding-ret) rhs))))]
+       [(_ (~and args (_::parens . _)) ret::maybe-ret
            (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor #f transparent (block (group fun args ret ... rhs))))]
-       [(_ (~and rhs (_::alts
-                      (_::block id:identifier (group (_::parens . _) ret ...
-                                                     (_::block . _)))
-                      ...+)))
+        #:with ([forwarding-annot-id forwarding-ret forwarded-ret]) (forwarding-annotations #'() #'(ret.seq))
+        (wrap-class-clause #`(#:constructor #f
+                              ([forwarding-annot-id args forwarded-ret])
+                              (block (group fun args (~@ . forwarding-ret) rhs))))]
+       [(_ (atag::alts
+            (btag::block id:identifier (gtag (~and args (_::parens . _)) ret::maybe-ret
+                                             (~and body (_::block . _))))
+            ...+))
+        #:with ([forwarding-annot-id forwarding-ret forwarded-ret] ...) (forwarding-annotations #'() #'(ret.seq ...))
         #:with (id0 idx ...) #'(id ...)
         (for ([idx (in-list (syntax->list #'(idx ...)))])
           (unless (bound-identifier=? idx #'id0)
             (raise-syntax-error #f "inconsistent name identifier" stx idx)))
-        (wrap-class-clause #`(#:constructor id0 transparent (block (group fun rhs))))]
-       [(_ (~and rhs (_::alts
-                      (_::block (group (_::parens . _) ret ...
-                                       (_::block . _)))
-                      ...+)))
-        (wrap-class-clause #`(#:constructor #f transparent (block (group fun rhs))))]
-       [(_ id:identifier (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor id opaque rhs))]
+        (wrap-class-clause #`(#:constructor id0
+                              ([forwarding-annot-id args forwarded-ret] ...)
+                              (block (group fun (atag
+                                                 (btag id (gtag args (~@ . forwarding-ret)
+                                                                body))
+                                                 ...)))))]
+       [(_ (atag::alts
+            (btag::block (gtag (~and args (_::parens . _)) ret::maybe-ret
+                               (~and body (_::block . _))))
+            ...+))
+        #:with ([forwarding-annot-id forwarding-ret forwarded-ret] ...) (forwarding-annotations #'() #'(ret.seq ...))
+        (wrap-class-clause #`(#:constructor #f
+                              ([forwarding-annot-id args forwarded-ret] ...)
+                              (block (group fun (atag
+                                                 (btag (gtag args (~@ . forwarding-ret)
+                                                             body))
+                                                 ...)))))]
        [(_ (~and rhs (_::block . _)))
-        (wrap-class-clause #`(#:constructor #f opaque rhs))]))))
+        (wrap-class-clause #`(#:constructor #f #f rhs))]))))
 
 (define-class-clause-syntax reconstructor
   (class-clause-transformer
@@ -469,7 +515,7 @@
    (lambda (stx data)
      (syntax-parse stx
        [(_ (~var m (:method-impl stx #'#:method))) #'m.form]
-       [(_ (~var decl (:method-decl stx #'#:method))) (wrap-class-clause #'(#:abstract decl.id decl.rhs decl.has-cases decl.maybe-ret))]))))
+       [(_ (~var decl (:method-decl stx #'#:method))) (wrap-class-clause #'(#:abstract decl.id decl.rhs decl.forwards decl.maybe-ret))]))))
 
 (define-veneer-clause-syntax method
   (veneer-clause-transformer parse-class-method))
@@ -507,11 +553,11 @@
    (lambda (stx data)
      (syntax-parse stx
        [(_ _::method (~var m (:method-impl stx #'#:override))) #'m.form]
-       [(_ _::method (~var decl (:method-decl stx #'#:override))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.has-cases decl.maybe-ret))]
+       [(_ _::method (~var decl (:method-decl stx #'#:override))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.forwards decl.maybe-ret))]
        [(_ _::property (~var m (:property-impl #'#:override-property))) #'m.form]
        [(_ _::property decl::property-decl) (wrap-class-clause #'(#:abstract-override-property decl.id decl.rhs #f decl.maybe-ret))]
        [(_ (~var m (:method-impl stx #'#:override))) #'m.form]
-       [(_ (~var decl (:method-decl stx #'#:override))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.has-cases decl.maybe-ret))]))))
+       [(_ (~var decl (:method-decl stx #'#:override))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.forwards decl.maybe-ret))]))))
 
 (define-veneer-clause-syntax override
   (veneer-clause-transformer parse-class-override))
@@ -574,15 +620,15 @@
 
 (define-for-syntax (parse-abstract-clause stx data)
   (syntax-parse stx
-    [(_ _::method (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract decl.id decl.rhs decl.has-cases decl.maybe-ret))]
-    [(_ _::protected (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-protected decl.id decl.rhs decl.has-cases decl.maybe-ret))]
-    [(_ _::protected _::method (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-protected decl.id decl.rhs decl.has-cases decl.maybe-ret))]
+    [(_ _::method (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract decl.id decl.rhs decl.forwards decl.maybe-ret))]
+    [(_ _::protected (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-protected decl.id decl.rhs decl.forwards decl.maybe-ret))]
+    [(_ _::protected _::method (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-protected decl.id decl.rhs decl.forwards decl.maybe-ret))]
     [(_ _::property decl::property-decl) (wrap-class-clause #'(#:abstract-property decl.id decl.rhs #f decl.maybe-ret))]
-    [(_ _::override (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.has-cases decl.maybe-ret))]
-    [(_ _::override _::method (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.has-cases decl.maybe-ret))]
+    [(_ _::override (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.forwards decl.maybe-ret))]
+    [(_ _::override _::method (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract-override decl.id decl.rhs decl.forwards decl.maybe-ret))]
     [(_ _::override _::property decl::property-decl) (wrap-class-clause #'(#:abstract-override-property decl.id decl.rhs #f decl.maybe-ret))]
     [(_ _::protected _::property decl::property-decl) (wrap-class-clause #'(#:abstract-protected-property decl.id decl.rhs #f decl.maybe-ret))]
-    [(_ (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract decl.id decl.rhs decl.has-cases decl.maybe-ret))]))
+    [(_ (~var decl (:method-decl stx #'#:abstract))) (wrap-class-clause #'(#:abstract decl.id decl.rhs decl.forwards decl.maybe-ret))]))
 
 (define-class-clause-syntax abstract
   (class-clause-transformer parse-abstract-clause))

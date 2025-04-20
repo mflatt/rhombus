@@ -2,9 +2,10 @@
 (require (for-syntax racket/base
                      syntax/parse/pre
                      "annotation-string.rkt"
-                     "class-method-result.rkt"
-                     "same-expression.rkt")
+                     "class-method-result.rkt")
          "static-info.rkt"
+         "annotation.rkt"
+         (submod "annotation.rkt" for-class)
          (submod "define-arity.rkt" for-info)
          "call-result-key.rkt"
          "function-arity-key.rkt"
@@ -15,6 +16,7 @@
          "contains-key.rkt"
          "values-key.rkt"
          (submod "function-parse.rkt" for-build)
+         "class-forward-annot.rkt"
          (only-in "function-arity.rkt"
                   shift-arity))
 
@@ -22,7 +24,9 @@
 
 (define-syntax (define-method-result stx)
   (syntax-parse stx
-    [(_ id [args ((~var ret (:ret-annotation (parse-arg-context #:this? #t #'args))))]
+    [(_ id
+        maybe-ret
+        ret-forwards
         (super-result-id ...)
         maybe-id convert-ok? checked-append? checked-compare? kind arity
         maybe-call-statinfo-id
@@ -31,6 +35,8 @@
         maybe-append-statinfo-id+id
         maybe-compare-statinfo-id+id
         maybe-contains-statinfo-id+id)
+     #:with (_ maybe-ret* ([forward-id forward-c-parsed] ...)) (merge-forwards #'maybe-ret #'ret-forwards #'convert-ok?)
+     #:with [args ((~var ret (:ret-annotation (parse-arg-context #:this? #t #'args))))] #'maybe-ret*
      #:do [(define-values (proc predicate? count annot-str static-infos)
              (cond
                [(attribute ret.converter)
@@ -171,6 +177,10 @@
                                '())))])
            '()))
      #`(begin
+         ;; Each `forward-id` annotation is used in an expression that
+         ;; implements a method, needed to apply potential checks/conversions
+         #,@(build-forward-annotations #'(forward-id ...)
+                                       #'(forward-c-parsed ...))
          (~? (define handler-id handler))
          #,@(if (syntax-e #'id)
                 (list

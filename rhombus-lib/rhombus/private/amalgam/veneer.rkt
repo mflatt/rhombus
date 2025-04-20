@@ -314,8 +314,7 @@
                                          null
                                          null
                                          null                                         
-                                         #f
-                                         #'()
+                                         #f #f
                                          #'(name constructor-name name-instance
                                                  #f #f
                                                  indirect-static-infos

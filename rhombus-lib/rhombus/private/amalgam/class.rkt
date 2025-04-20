@@ -309,6 +309,7 @@
        (define given-constructor-stx-params (hash-ref options 'constructor-stx-params #f))
        (define given-constructor-name (hash-ref options 'constructor-name #f))
        (define given-expression-macro-rhs (hash-ref options 'expression-rhs #f))
+       (define constructor-forward-rets (hash-ref options 'constructor-forward-rets #f))
        (define binding-rhs (hash-ref options 'binding-rhs #f))
        (define annotation-rhs (hash-ref options 'annotation-rhs #f))
        (define-values (internal-id exposed-internal-id extra-exposed-internal-ids)
@@ -409,16 +410,9 @@
                                                         (syntax-e field)))
                                 field)))))
 
-       (define-values (given-constructor-rhs/expanded constructor-result-static-infos)
-         (if (and given-constructor-rhs
-                  (not (constructor-as-expression? given-constructor-rhs))
-                  (hash-ref options 'constructor-transparent? #f))
-             (expand-constructor-result-annotations given-constructor-rhs)
-             (values given-constructor-rhs #'())))
-
        (define constructor-rhs
          (or (and (not (constructor-as-expression? given-constructor-rhs))
-                  given-constructor-rhs/expanded)
+                  given-constructor-rhs)
              (and (or has-private-constructor-fields?
                       (and super
                            (class-desc-constructor-makers super)))
@@ -436,7 +430,7 @@
                     #:when dp)
            dp))
 
-       (define added-methods/orig (reverse (hash-ref options 'methods '())))
+       (define added-methods (reverse (hash-ref options 'methods '())))
        (define-values (method-mindex   ; symbol -> mindex
                        method-names    ; index -> symbol-or-identifier
                        method-vtable   ; index -> function-identifier or '#:abstract
@@ -445,11 +439,9 @@
                        method-private-inherit ; symbol -> (vector ref-id index maybe-result-id)
                        method-decls    ; symbol -> identifier, intended for checking distinct
                        abstract-name)  ; #f or identifier for a still-abstract method
-         (extract-method-tables stxes added-methods/orig super interfaces
+         (extract-method-tables stxes added-methods super interfaces
                                 private-interfaces protected-interfaces
                                 final? prefab?))
-
-       (define added-methods (expand-case-result-annotations added-methods/orig final?))
 
        (check-fields-methods-dots-distinct stxes field-ht method-mindex method-names method-decls dots)
        (check-consistent-unimmplemented stxes final? abstract-name #'name)
@@ -778,8 +770,7 @@
                                          (append super-defaults constructor-private-defaults)
                                          (append super-accessors (syntax->list #'(constructor-name-field ...)))
                                          (append super-mutators constructor-private-mutables)
-                                         (eq? constructor-rhs 'synthesize)
-                                         constructor-result-static-infos
+                                         (eq? constructor-rhs 'synthesize) constructor-forward-rets
                                          #'(name constructor-name name-instance
                                                  internal-name-instance make-internal-name
                                                  indirect-static-infos
