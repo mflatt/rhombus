@@ -5,7 +5,6 @@
                      "class-method-result.rkt")
          "static-info.rkt"
          "annotation.rkt"
-         (submod "annotation.rkt" for-class)
          (submod "define-arity.rkt" for-info)
          "call-result-key.rkt"
          "function-arity-key.rkt"
