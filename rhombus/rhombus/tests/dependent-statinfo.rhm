@@ -48,7 +48,8 @@ check:
   def m :: Map.of(String, Bytes) = { "a": #"b" }
   def m2 = add(m, "hello", #'bad)
   m2["hello"].length()
-  ~throws values("no such field or method",
+  ~throws values("length",
+                 "no such field or method",
                  "based on static information")
 
 block:
@@ -56,6 +57,17 @@ block:
     constructor (y) :: Posn.of(Any, Any.like(y)):
       super(0, y)
   check Posn("apple").y.length() ~is 5
+
+check:
+  ~eval
+  use_static
+  class Posn(x, y):
+    constructor (y) :: Posn.of(Any, Any.like(y)):
+      super(0, y)
+  Posn("apple").x.length()
+  ~throws values("length",
+                 "no such field or method",
+                 "based on static information")
 
 annot.macro 'ToAnyLike($id, ...)':
   ~context ctx

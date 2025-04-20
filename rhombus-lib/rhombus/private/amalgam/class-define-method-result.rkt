@@ -35,7 +35,8 @@
         maybe-append-statinfo-id+id
         maybe-compare-statinfo-id+id
         maybe-contains-statinfo-id+id)
-     #:with (_ maybe-ret* ([forward-id forward-c-parsed] ...)) (merge-forwards #'maybe-ret #'ret-forwards #'convert-ok?)
+     #:with (_ maybe-ret* ([forward-id forward-c-parsed] ...)) (merge-forwards #'maybe-ret #'ret-forwards #'convert-ok?
+                                                                               #:this? #t)
      #:with [args ((~var ret (:ret-annotation (parse-arg-context #:this? #t #'args))))] #'maybe-ret*
      #:do [(define-values (proc predicate? count annot-str static-infos)
              (cond

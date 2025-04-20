@@ -16,8 +16,8 @@
 
 (provide (for-syntax extract-instance-static-infoss
                      build-instance-static-infos-defs
-                     build-class-static-infos))
-
+                     build-class-static-infos)
+         define-constructor-static-info)
 
 (define-for-syntax (extract-instance-static-infoss name-id options super interfaces
                                                    private-interfaces protected-interfaces
@@ -147,7 +147,7 @@
                           [else (summarize-arity constructor-keywords
                                                  constructor-defaults
                                                  #f #f)])])
-           (define-values (dep-results forward-defns)
+           (define-values (define-static-info-syntax-id def-extras dep-results)
              (cond
                [auto-constructor?
                 (with-syntax ([pos+accessors
@@ -163,25 +163,25 @@
                                                        (list kw accessor)
                                                        (list i accessor))
                                                    l)
-                                             l)))])
-                  (values #'((#%dependent-result (select-for-constructor pos+accessors)))
-                          null))]
+                                             l)))])                  
+                  (values #'define-static-info-syntax
+                          null
+                          #'((#%dependent-result (select-for-constructor pos+accessors)))))]
                [else
-                (syntax-parse (merge-forwards #'() constructor-forward-rets #'#t)
-                  [(static-infos _ ([forward-id forward-c-parsed] ...))
-                   (values #'static-infos
-                           (build-forward-annotations #'(forward-id ...)
-                                                      #'(forward-c-parsed ...)))])]))
-           (with-syntax ([(dep-result ...) dep-results])
-             (append
-              forward-defns
-              (list
-               #'(define-static-info-syntax constructor-name
-                   (#%call-result (dep-result ...
-                                   (#%dot-provider dot-providers)
-                                   . indirect-static-infos))
-                   (#%function-arity arity-mask)
-                   . #,(get-function-static-infos))))))
+                (values #'define-constructor-static-info
+                        (list constructor-forward-rets)
+                        #'())]))
+           (with-syntax ([define-static-info-syntax define-static-info-syntax-id]
+                         [(extra ...) def-extras]
+                         [(dep-result ...) dep-results])
+             (list
+              #'(define-static-info-syntax constructor-name
+                  extra ...
+                  (#%call-result (dep-result ...
+                                             (#%dot-provider dot-providers)
+                                             . indirect-static-infos))
+                  (#%function-arity arity-mask)
+                  . #,(get-function-static-infos)))))
          null)
      (if (and exposed-internal-id
               (syntax-e #'make-internal-name))
@@ -255,3 +255,21 @@
        (if (static-infos-empty? new-si)
            si
            #`((accessor-id  #,new-si) . #,si))])))
+
+;; To delay expansion of `constructor-forward-rets` until after
+;; the class namespace is ready
+(define-syntax (define-constructor-static-info stx)
+  (syntax-parse stx
+    #:datum-literals (#%call-result)
+    [(_ constructor-name
+        constructor-forward-rets
+        (#%call-result (c ...))
+        other-static-info ...)
+     (syntax-parse (merge-forwards #'() #'constructor-forward-rets #'#t)
+       [((new-static-info ...) _ ([forward-id forward-c-parsed] ...))
+        #`(begin
+            #,@(build-forward-annotations #'(forward-id ...)
+                                          #'(forward-c-parsed ...))
+            (define-static-info-syntax constructor-name
+              (#%call-result (new-static-info ... c ...))
+              other-static-info ...))])]))

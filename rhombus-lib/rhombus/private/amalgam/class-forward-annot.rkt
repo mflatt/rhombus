@@ -12,10 +12,11 @@
 (provide (for-syntax merge-forwards
                      build-forward-annotations))
 
-(define-for-syntax (merge-forwards maybe-ret ret-forwards convert-ok-stx?)
+(define-for-syntax (merge-forwards maybe-ret ret-forwards convert-ok-stx?
+                                   #:this? [this? #f])
   (syntax-parse ret-forwards
     [#f (list #'() maybe-ret null)]
-    [([(forward-id ...) args (((~var ret (:ret-annotation/prepass (parse-arg-context #:this? #t #'args)))) ...)]
+    [([(forward-id ...) args (((~var ret (:ret-annotation/prepass (parse-arg-context #:this? this? #'args)))) ...)]
       ...)
      (define (normalize sis)
        (syntax-parse sis
