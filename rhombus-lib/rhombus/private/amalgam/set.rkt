@@ -1012,8 +1012,7 @@
                              #'()))
         si))
   (cond
-    [(or (null? new-si)
-         (and (syntax? new-si) (null? (syntax-e new-si))))
+    [(static-infos-empty? new-si)
      #'()]
     [else
      (case (syntax-e data)
@@ -1021,12 +1020,11 @@
        [(index) #`((#%index-result #,new-si))]
        [else new-si])]))
 
-
-
 (define-syntax (merge-elems data deps)
   (define args (annotation-dependencies-args deps))
   (cond
-    [(null? args)
+    [(or (null? args)
+         (annotation-dependencies-rest? deps))
      #'()]
     [else
      (define si
@@ -1100,7 +1098,8 @@
      (set-append-all s1 ss)]))
 
 (define/method Set.union
-  #:static-infos ((#%call-result #,(get-set-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elems #f))
+                                  #,@(get-set-static-infos))))
   (case-lambda
     [(s)
      (check-set who s)
@@ -1127,7 +1126,8 @@
       (hash-set new-ht k #t))))
 
 (define/method Set.intersect
-  #:static-infos ((#%call-result #,(get-set-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-elem sequence))
+                                  #,@(get-set-static-infos))))
   (case-lambda
     [(s)
      (check-set who s)

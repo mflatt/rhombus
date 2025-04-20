@@ -344,7 +344,8 @@
                             (get-list-static-infos)))
   (define args (annotation-dependencies-args deps))
   (cond
-    [(null? args)
+    [(or (null? args)
+         (annotation-dependencies-rest? deps))
      res-statinfos]
     [else
      (define si

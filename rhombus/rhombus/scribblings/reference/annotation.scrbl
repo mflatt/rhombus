@@ -113,6 +113,8 @@
   annot.macro 'Any.like_element($arg_id)'
   annot.macro 'Any.like_key($arg_id)'
   annot.macro 'Any.like_value($arg_id)'
+  annot.macro 'Any.like_first($arg_id)'
+  annot.macro 'Any.like_rest($arg_id)'
   annot.macro 'Any.like_field($class_name . $field_id($arg_id))'
 ){
 
@@ -121,9 +123,16 @@
  @rhombus(fun, ~defn). Annotations created by @rhombus(Any.like, ~annot)
  and related forms do not imply any run-time checks, but they propagate
  static information from actual argument expressions in a specific
- function call to that specific call's result. In the case of a method,
- @rhombus(this) can be used as an @rhombus(arg_id) to refer to the actual
- target object.
+ function call to that specific call's result.
+
+ In the case of a method, @rhombus(this) can be used as an
+ @rhombus(arg_id) to refer to the actual target object. When an
+ @rhombus(arg_id) refers to a repetition, then static information for
+ actual arguments mapped to the repetition are combined with
+ @rhombus(statinfo_meta.or). When an @rhombus(arg_id) refers to a splice
+ or keyword splice, then corresponding arguments are similarly combined
+ with @rhombus(statinfo_meta.or) to get the element or value static
+ information within the splice variable as a list or map.
 
  An @rhombus(Any.like, ~annot) annotation propagates static information
  directly from an argument.
@@ -132,11 +141,15 @@
   ~defn:
     fun twice(v) :: List.of(Any.like(v)):
       [v, v]
+    fun rev(v, ...) :: List.of(Any.like(v)):
+      [v, ...].reverse()
   ~repl:
     use_static
     def lst = twice("apple")
     :
       lst[0].length() // method found statically
+    :
+      rev("a", "bb", "ccc")[0].length() // ditto
 )
 
  An @rhombus(Any.like_element, ~annot) annotation propagates static
@@ -170,6 +183,21 @@
     def lst = listize({ "a": [1, 2, 3], "b": [0, 0] })
     lst[0].first.length()
     lst[1].rest.reverse()
+)
+
+ The @rhombus(Any.like_first, ~annot) or @rhombus(Any.like_rest, ~annot)
+ are similar to @rhombus(Any.like_element, ~annot), but for the components of
+ @tech{pairs}. 
+
+@examples(
+  ~defn:
+    fun pick_part(pr :: Pair) :: Any.like_first(pr) || Any.like_rest(pr):
+      if math.random(2) == 0
+      | pr.first
+      | pr.rest
+  ~repl:
+    use_static
+    pick_part(Pair("apples", "banana")).length()
 )
 
  An @rhombus(Any.like_field(class_name.field_id(arg_id)), ~annot)

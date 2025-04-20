@@ -58,23 +58,23 @@
 (define-for-syntax (get-listable-static-infos)
   #`((#%dot-provider listable-instance)))
 
-(define-for-syntax (listable-of-predicate predicate-stxs)
-  #`(let ([pred #,(car predicate-stxs)])
-      (lambda (arg)
-        (for/and ([e (in-list (to-list 'Listable.of arg))])
-          (pred e)))))
+(define-for-syntax (listable-expect-of-predicate predicate-stxs)
+  #`(lambda (arg) #t))
 
 (define-syntax (listable-of-static-infoss data static-infoss)
   #`((#%index-result #,(car static-infoss))))
 
-(define-annotation-constructor (Listable Listable.of)
+(define-syntax (listable-build-convert arg-id build-convert-stxs kws data)
+  arg-id)
+
+(define-annotation-constructor (Listable Listable.expect_of)
   ()
   #'listable? #,(get-listable-static-infos)
   1
   #f
-  listable-of-predicate
+  listable-expect-of-predicate
   #'listable-of-static-infoss #f
-  #f #f)
+  #'listable-build-convert #f)
 
 (define-dot-provider-syntax listable-instance
   (dot-provider
@@ -87,7 +87,7 @@
 (define-name-root Listable
   #:fields
   ([to_list Listable.to_list]
-   [of Listable.of]))
+   [expect_of Listable.expect_of]))
 
 (define-syntax to-list-static-infos
   (lambda (data deps)

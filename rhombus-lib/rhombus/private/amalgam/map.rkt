@@ -1131,7 +1131,8 @@
 (define-syntax (merge-keys-and-values data deps)
   (define args (annotation-dependencies-args deps))
   (cond
-    [(null? args)
+    [(or (null? args)
+         (annotation-dependencies-rest? deps))
      #'()]
     [else
      (define si-pair

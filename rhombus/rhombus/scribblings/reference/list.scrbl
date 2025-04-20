@@ -444,8 +444,10 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).append(lst :: List, ...) :: List
-  fun List.append(lst :: List, ...) :: List
+  method (lst :: List).append(lst2 :: List, ...)
+    :: List.of(Any.like_element(lst) || Any.like_element(lst2))
+  fun List.append(lst :: List, ...)
+    :: List.of(Any.like_element(lst))
 ){
 
  Appends the @rhombus(lst)s in order. See also @rhombus(++).
@@ -488,8 +490,10 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).drop(n :: NonnegInt) :: List
-  method (lst :: List).drop_last(n :: NonnegInt) :: List
+  method (lst :: List).drop(n :: NonnegInt)
+    :: List.of(Any.like_element(lst))
+  method (lst :: List).drop_last(n :: NonnegInt)
+    :: List.of(Any.like_element(lst))
 ){
 
  Returns a list like @rhombus(lst), but without the first @rhombus(n)
@@ -512,10 +516,10 @@ it supplies its elements in order.
 
 @doc(
   method (lst :: List).sublist(rge :: Range)
-    :: List
+    :: List.of(Any.like_element(lst))
   method (lst :: List).sublist(start :: NonnegInt,
                                end :: NonnegInt)
-    :: List
+    :: List.of(Any.like_element(lst))
 ){
 
  When given two arguments, returns a sublist of @rhombus(lst)
@@ -581,7 +585,7 @@ it supplies its elements in order.
 
 @doc(
   method (lst :: List).find(pred :: Function.of_arity(1))
-    :: Any
+    :: Any.like_element(lst)
   method (lst :: List).find_index(pred :: Function.of_arity(1))
     :: maybe(NonnegInt)
 ){
@@ -605,7 +609,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).remove(v :: Any) :: List
+  method (lst :: List).remove(v :: Any)
+    :: List.of(Any.like_element(lst))
 ){
 
  Returns a list like @rhombus(lst), but with the first element equal to
@@ -640,9 +645,10 @@ it supplies its elements in order.
   method (lst :: List).filter(
     ~keep: keep_pred :: Function.of_arity(1),
     ~skip: skip_pred :: Function.of_arity(1)
-  ) :: List,
+  ) :: List.of(Any.like_element(lst))
   method (lst :: List).partition(pred :: Function.of_arity(1))
-    :: values(List, List)
+    :: values(List.of(Any.like_element(lst)),
+              List.of(Any.like_element(lst)))
 ){
 
  The @rhombus(List.filter) function returns a list that is like
@@ -669,7 +675,7 @@ it supplies its elements in order.
 
 @doc(
   method (lst :: List).sort(is_less :: Function.of_arity(2) = (_ < _))
-    :: List,
+    :: List.of(Any.like_element(lst))
 ){
 
  Sorts @rhombus(lst) using @rhombus(is_less) to compare elements.
@@ -713,7 +719,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).to_list() :: List
+  method (lst :: List).to_list()
+    :: List.of(Any.like_element(lst))
 ){
 
  Implements @rhombus(Listable, ~class) by returning @rhombus(lst) unchanged.
@@ -722,7 +729,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).to_sequence() :: Sequence
+  method (lst :: List).to_sequence()
+    :: Sequence.expect_of(Any.like_element(lst))
 ){
 
  Implements @rhombus(Sequenceable, ~class) by returning a

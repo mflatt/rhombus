@@ -1027,6 +1027,8 @@
    [like_element Any.like_element]
    [like_key Any.like_key]
    [like_value Any.like_value]
+   [like_first Any.like_first]
+   [like_rest Any.like_rest]
    [like_field Any.like_field]))
 
 (define-name-root Int
@@ -1285,7 +1287,8 @@
          (hash-ref (annotation-dependencies-kw-args deps) v #f)]
         [(and (pair? v)
               (or (eq? (car v) 'repet)
-                  (eq? (car v) 'splice)))
+                  (eq? (car v) 'splice))
+              (not (annotation-dependencies-rest? deps)))
          (define i (cadr v))
          (define args (annotation-dependencies-args deps))
          (cond
@@ -1302,7 +1305,8 @@
                 (indirect-get-treelist-static-infos)
                 #f)])]
         [(and (pair? v)
-              (eq? (car v) 'keyword_splice))
+              (eq? (car v) 'keyword_splice)
+              (not (annotation-dependencies-kw-rest? deps)))
          (define kw-args
            (for/fold ([kw-args (annotation-dependencies-kw-args deps)]) ([kw (in-list (cdr v))])
              (hash-remove kw-args kw)))
@@ -1334,6 +1338,18 @@
 
 (define-annotation-syntax Any.like_element
   (make-like #'like-element-accessor))
+
+(define-syntax (like-first-accessor data deps)
+  (static-info-lookup (get-argument-static-infos data deps) #'car))
+
+(define-syntax (like-rest-accessor data deps)
+  (static-info-lookup (get-argument-static-infos data deps) #'cdr))
+
+(define-annotation-syntax Any.like_first
+  (make-like #'like-first-accessor))
+
+(define-annotation-syntax Any.like_rest
+  (make-like #'like-rest-accessor))
 
 (define-for-syntax (like-sequence-values-accessor data deps key?)
   (define si (get-argument-static-infos data deps))

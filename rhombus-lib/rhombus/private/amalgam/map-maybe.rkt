@@ -1,6 +1,7 @@
 #lang racket/base
 (require (for-syntax racket/base
-                     syntax/parse/pre)
+                     syntax/parse/pre
+                     "annot-context.rkt")
          "provide.rkt"
          "class-primitive.rkt"
          (submod "annotation.rkt" for-class)
@@ -50,6 +51,26 @@
   #:methods
   ([get MapMaybe.get]))
 
+(define-syntax (map-maybe-of-static-infos data static-infoss)
+  #`((#%index-result #,(cadr static-infoss))))
+
+(define-annotation-constructor (MapMaybe/again MapMaybe.of)
+  ()
+  #'map-maybe? #,(get-map-maybe-static-infos)
+  1
+  #f
+  (lambda (predicate-stxs)
+    #`(let ([pred #,(car predicate-stxs)])
+        (lambda (arg)
+          (for/and ([e (in-hash (map-maybe-ht arg))])
+            (pred e)))))
+  
+  #'map-maybe-of-static-infos #f
+  #'map-maybe-build-convert #'())
+
+(define-syntax (map-build-convert arg-id build-convert-stxs kws data)
+  arg-id)
+
 (define-for-syntax (extract-maybe-statinfo lhs-si)
   (define si (static-info-lookup lhs-si #'#%index-result))
   (define demaybed-si
@@ -69,8 +90,22 @@
   (unless (hash? ht)
     (raise-annotation-failure who ht "ReadableMap")))
 
+(define-syntax (select-elem-as-maybe data deps)
+  (define args (annotation-dependencies-args deps))
+  (define map-i 0)
+  (define si
+    (or (static-info-lookup (or (and (< map-i (length args))
+                                     (list-ref args map-i))
+                                #'())
+                            #'#%index-result)
+        #'()))
+  (cond
+    [(static-infos-empty? si) #'()]
+    [else #`((#%index-result ((#%mapbe #,si))))]))
+
 (define/arity (Map.maybe ht)
-  #:static-infos ((#%call-result #,(get-map-maybe-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (select-elem-as-maybe #f))
+                                  #,@(get-map-maybe-static-infos))))
   (check-readable-map who ht)
   (map-maybe ht))
 

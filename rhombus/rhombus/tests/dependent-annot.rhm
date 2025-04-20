@@ -53,6 +53,14 @@ check:
                  "based on static information")
 
 block:
+  fun twice(p) :: values(Pair.of(Any, Any.like_rest(p)),
+                         Pair.of(Any.like_first(p), Any)):
+    values(p, p)
+  let (p1, p2) = twice(Pair("x", #"yy"))
+  check p2.first.length() ~is 1
+  check p1.rest.length() ~is 2
+
+block:
   class Posn(x, y):
     constructor (y) :: Posn.of(Any, Any.like(y)):
       super(0, y)

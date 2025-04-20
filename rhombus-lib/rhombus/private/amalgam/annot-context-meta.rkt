@@ -5,6 +5,7 @@
          "class-primitive.rkt"
          "function-arity-key.rkt"
          "index-result-key.rkt"
+         (submod "list.rkt" for-compound-repetition)
          (submod "map.rkt" for-info))
 
 (provide (for-spaces (rhombus/namespace
@@ -20,6 +21,19 @@
   #:fields
   ([(argument_names argument-names) #,(get-map-static-infos)]
    [(this_position this-pos)])
+  #:properties
+  ()
+  #:methods
+  ())
+
+(define-primitive-class annot_meta.Dependencies annotation-dependencies
+  #:existing
+  #:transparent #:no-primitive
+  #:fields
+  ([(arguments args) #,(get-list-static-infos)]
+   [(keyword_arguments args) #,(get-map-static-infos)]
+   [(has_more_arguments rest?)]
+   [(has_more_keyword_arguments kw-rest?)])
   #:properties
   ()
   #:methods

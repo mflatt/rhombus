@@ -31,4 +31,17 @@
                                  kw-args  ; map of keyword -> static-infos
                                  rest?
                                  kw-rest?)
-  #:transparent)
+  #:property prop:field-name->accessor
+  (list* null
+         (hasheq 'arguments (lambda (e) (annotation-dependencies-args e))
+                 'keyword_arguments (lambda (e) (annotation-dependencies-kw-args e))
+                 'has_more_arguments (lambda (e) (annotation-dependencies-rest? e))
+                 'has_more_keyword_arguments (lambda (e) (annotation-dependencies-kw-rest? e)))
+         #hasheq())
+  #:guard (lambda (args kw-args rest? kw-rest? info)
+            (define who 'annot_meta.Dependencies)
+            (unless (list? args)
+              (raise-annotation-failure who args "List"))
+            (unless (immutable-hash? kw-args)
+              (raise-annotation-failure who kw-args "Map"))
+            (values args kw-args (and rest? #t) (and kw-rest? #t))))
