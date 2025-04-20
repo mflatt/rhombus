@@ -672,9 +672,12 @@ in an unspecified order.
 }
 
 @doc(
-  property Map.maybe(mp :: ReadableMap) :: MapMaybe
+  property Map.maybe(mp :: ReadableMap)
+    :: MapMaybe.of(Any.like_element(mp))
   annot.macro 'MapMaybe'
-  method (mm :: MapMaybe).get(key :: Any) :: Any
+  annot.macro 'MapMaybe.expect_of($ann)'
+  method (mm :: MapMaybe).get(key :: Any)
+    :: Any.like_element(mm)
 ){
 
  The @rhombus(Map.maybe) property produces a @rhombus(MapMaybe, ~annot)
@@ -702,5 +705,11 @@ in an unspecified order.
     m.maybe[1]
     m.maybe is_a MapMaybe
 )
+
+ A @rhombus(MapMaybe.expect_of(ann), ~annot) annotation is like
+ @rhombus(MapMaybe, ~annot), but with static information indicating that
+ elements have the static information of @rhombus(maybe(ann), ~annot).
+ The extracted elements are not checked or converted, however, and
+ @rhombus(ann) is used only for its static information.
 
 }

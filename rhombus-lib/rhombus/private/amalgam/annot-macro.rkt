@@ -58,7 +58,8 @@
      AfterPrefixParsed
      AfterInfixParsed
      NameStart
-     [Context annot_meta.Context])))
+     [Context annot_meta.Context]
+     [Dependencies annot_meta.Dependencies])))
 
 (define-for-syntax space
   (space-syntax rhombus/annot))

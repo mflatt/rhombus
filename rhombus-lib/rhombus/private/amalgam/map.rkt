@@ -374,7 +374,8 @@
                             (if (and (static-infos-empty? k-static-infos)
                                      (static-infos-empty? v-static-infos))
                                 (get-map-static-infos)
-                                #`((#%sequence-element ((#%values (#,k-static-infos #,v-static-infos))))
+                                #`((#%index-result #,v-static-infos)
+                                   (#%sequence-element ((#%values (#,k-static-infos #,v-static-infos))))
                                    #,@(get-map-static-infos)))
                             #:repetition? repetition?
                             #:rep-for-form rep-for-form))
@@ -1116,7 +1117,8 @@
            (if (and (static-infos-empty? new-k)
                     (static-infos-empty? new-v))
                #`()
-               #`((#%sequence-element ((#%values (#,new-k #,new-v))))))]
+               #`((#%index-result #,new-v)
+                  (#%sequence-element ((#%values (#,new-k #,new-v))))))]
           [else
            (define si (if (eq? (syntax-e #'which) 'key)
                           #'k
@@ -1154,7 +1156,8 @@
        [(k v)
         (if (or (not (static-infos-empty? #'k))
                 (not (static-infos-empty? #'v)))
-            #`((#%sequence-element ((#%values (k v)))))
+            #`((#%index-result v)
+               (#%sequence-element ((#%values (k v)))))
             #'())]
        [_ #'()])]))
 

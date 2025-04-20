@@ -12,7 +12,8 @@
                       #f
                       rhombus/bind
                       rhombus/annot)
-                     annot_meta.Context)
+                     annot_meta.Context
+                     annot_meta.Dependencies)
          (for-syntax get-annotation-context-static-infos))
 
 (define-primitive-class annot_meta.Context annotation-context
@@ -21,6 +22,8 @@
   #:fields
   ([(argument_names argument-names) #,(get-map-static-infos)]
    [(this_position this-pos)])
+  #:namespace-fields
+  ([empty empty-annot-context])
   #:properties
   ()
   #:methods

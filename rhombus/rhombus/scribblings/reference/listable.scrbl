@@ -81,8 +81,8 @@ sequence.
 
  An annotation like @rhombus(Listable, ~annot), with static information
  indicating that elements have the static information of @rhombus(ann).
- The extracted elements are not checked or converted, and @rhombus(ann)
- must be a @tech(~doc: guide_doc){predicate annotation}.
+ The extracted elements are not checked or converted, however, and
+ @rhombus(ann) is used only for its static information.
 
 }
 

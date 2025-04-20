@@ -11,6 +11,7 @@
          (submod "set.rkt" for-binding)
          "static-info.rkt"
          "sequence-element-key.rkt"
+         "index-result-key.rkt"
          "values-key.rkt")
 
 (provide (for-syntax parse-setmap-expression
@@ -42,7 +43,8 @@
                      (if (and (static-infos-empty? k-static-infos)
                               (static-infos-empty? v-static-infos))
                          (get-map-static-infos)
-                         #`((#%sequence-element ((#%values (#,k-static-infos #,v-static-infos))))
+                         #`((#%index-result #,v-static-infos)
+                            (#%sequence-element ((#%values (#,k-static-infos #,v-static-infos))))
                             #,@(get-map-static-infos))))
                  #:repetition? repetition?
                  #:rep-for-form (if (eq? shape 'set) #'for/setalw #'for/hashalw))))

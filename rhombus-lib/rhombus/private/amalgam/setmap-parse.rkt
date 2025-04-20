@@ -251,8 +251,8 @@
              (if (null? rev-args)
                  (reverse rev-argss)
                  (reverse (cons (reverse rev-args) rev-argss)))
-             key-static-infos
-             val-static-infos)]))
+             (or key-static-infos #'())
+             (or val-static-infos #'()))]))
 
 (define-for-syntax (build-setmap stx
                                  argss
