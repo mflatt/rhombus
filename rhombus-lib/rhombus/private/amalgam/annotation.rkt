@@ -41,7 +41,8 @@
          "call-result-key.rkt"
          "index-result-key.rkt"
          "sequence-element-key.rkt"
-         "values-key.rkt")
+         "values-key.rkt"
+         "class-this-id.rkt")
 
 (provide (for-spaces (#f
                       rhombus/repet
@@ -1242,8 +1243,11 @@
 
 (define-for-syntax (select-like accessor-id id form ctx
                                 #:make-data [make-data (lambda (x) x)])
-  (define v (hash-ref (annotation-context-argument-names ctx)
-                      (syntax-local-introduce id) #f))
+  (define v (or (hash-ref (annotation-context-argument-names ctx)
+                          (syntax-local-introduce id)
+                          #f)
+                (and (free-identifier=? id #'this)
+                     (annotation-context-this-pos ctx))))
   (unless v
     (raise-syntax-error #f
                         "cannot find argument by name"

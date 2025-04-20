@@ -56,7 +56,23 @@ block:
   class Posn(x, y):
     constructor (y) :: Posn.of(Any, Any.like(y)):
       super(0, y)
+    method twice(p) :: values(Posn.of(Any, Any.like_field(Posn.y(p))),
+                              Posn.of(Any.like_field(Posn.x(p)), Any)):
+      values(p, p)
+    method twice_this() :: values(Posn.of(Any, Any.like_field(Posn.y(this))),
+                                  Posn.of(Any.like_field(Posn.x(this)), Any)):
+      values(this, this)
   check Posn("apple").y.length() ~is 5
+  check Posn("apple").twice(Posn("apple")) ~is values(Posn("apple"), Posn("apple"))
+  check Posn("apple").twice_this() ~is values(Posn("apple"), Posn("apple"))
+  check:
+    let (a, b) = Posn("apple").twice(Posn("apple"))
+    a.y.length()
+    ~is 5
+  check:
+    let (a, b) = Posn("apple").twice_this()
+    a.y.length()
+    ~is 5
 
 check:
   ~eval
