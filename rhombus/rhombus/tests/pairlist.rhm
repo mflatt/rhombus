@@ -683,3 +683,4 @@ block:
   check los.sort((_ :: String < _))[0].length() ~is 1
   check los.to_list()[0].length() ~is 1
   check (for List (e in los.to_sequence()): e.length()) ~is [1, 1, 1]
+  check (PairList["a"] ++ PairList["b"])[0].length() ~is 1

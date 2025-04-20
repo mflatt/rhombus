@@ -921,7 +921,7 @@ block:
 // dependent result annotations
 block:
   use_static
-  def los :: List.of(String) = ["a", "b", "c"]
+  def los = ["a", "b", "c"]
   check los.get(0).length() ~is 1
   check List.first(los).length() ~is 1
   check List.last(los).length() ~is 1
@@ -949,6 +949,7 @@ block:
   check [x, ...][0].length() ~is 1
   check ["zzzz", x, ...][0].length() ~is 4
   check ["a1", "b", & ["ccccc"]][2].length() ~is 5
+  check (["a"] ++ ["b"])[0].length() ~is 1
 
 check:
   ~eval

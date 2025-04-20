@@ -85,6 +85,25 @@ check:
                  "no such field or method",
                  "based on static information")
 
+block:
+  fun f(& x) :: Any.like(x):
+    x
+  check f("a", "b")[0].length() ~is 1
+
+block:
+  fun f(x, ...) :: List.of(Any.like(x)):
+    [x, ...]
+  check f("a", "b")[0].length() ~is 1
+
+block:
+  fun f(~& x) :: Any.like(x):
+    x
+  check f(~x: "a", ~y: "b")[#'~x].length() ~is 1
+  check:
+    let keys = f(~x: "a", ~y: "b").keys()
+    keys[0] compares_equal keys[1]
+    ~is #false
+
 annot.macro 'ToAnyLike($id, ...)':
   ~context ctx
   let map:
@@ -124,7 +143,7 @@ check f1(-1, -2) ~is [0, { #'x: 0, #'y: 1 }]
 check f2(-1, ~y: -2) ~is [0, #'~y, { #'x: 0, #'y: #'~y }]
 check f3(-1) ~is [[#'repet, 0], { #'x: [#'repet, 0] }]
 check f4(-1) ~is [[#'splice, 0], { #'x: [#'splice, 0] }]
-check f5(~x: -1) ~is [#'keyword_splice, { #'x: #'keyword_splice }]
+check f5(~x: -1) ~is [[#'keyword_splice], { #'x: [#'keyword_splice] }]
 check f6(1, 2) ~is [0, { #'x: 0, #'y: 1 }]
 
 class Posn():
@@ -132,6 +151,9 @@ class Posn():
     10
   method m2(x, ..., ~& y) :: ToAnyLike(x, y):
     10
+  method m3(~z: z = 0, x, ~& y) :: ToAnyLike(z):
+    10
 
 check Posn().m1(-1, -2) ~is [1, { #'this: 0, #'x: 1, #'y: 2 }]
-check Posn().m2(-1, -2) ~is [[#'repet, 1], #'keyword_splice, { #'this: 0, #'x: [#'repet, 1], #'y: #'keyword_splice }]
+check Posn().m2(-1, -2) ~is [[#'repet, 1], [#'keyword_splice], { #'this: 0, #'x: [#'repet, 1], #'y: [#'keyword_splice] }]
+check Posn().m3(-1) ~is [#'~z, { #'this: 0, #'z: #'~z, #'x: 1, #'y: [#'keyword_splice, #'~z] }]

@@ -976,7 +976,8 @@
 
 ;; for `++`
 (define-static-info-syntax Set.append/optimize
-  (#%call-result #,(get-set-static-infos)))
+  (#%call-result ((#%dependent-result (merge-elems #f))
+                  #,@(get-set-static-infos))))
 
 (define set-extend*
   (case-lambda
@@ -1019,6 +1020,22 @@
        [(sequence merge) #`((#%sequence-element #,new-si))]
        [(index) #`((#%index-result #,new-si))]
        [else new-si])]))
+
+
+
+(define-syntax (merge-elems data deps)
+  (define args (annotation-dependencies-args deps))
+  (cond
+    [(null? args)
+     #'()]
+    [else
+     (define si
+       (for/fold ([si (or (static-info-lookup (car args) #'#%sequence-element) #'())])
+                 ([arg (in-list (cdr args))])
+         (static-infos-or si (or (static-info-lookup arg #'#%sequence-element) #'()))))
+     (if (not (static-infos-empty? si))
+         #`((#%sequence-element #,si))
+         #'())]))
 
 (define/method (Set.copy s)
   #:static-infos ((#%call-result ((#%dependent-result (select-elem sequence))
@@ -1066,7 +1083,8 @@
          (set-append/hash ht (set-ht s)))))
 
 (define/method Set.append
-  #:static-infos ((#%call-result #,(get-set-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elems #f))
+                                  #,@(get-set-static-infos))))
   (case-lambda
     [(s)
      (check-set who s)

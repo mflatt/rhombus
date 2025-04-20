@@ -1816,7 +1816,7 @@
   (define-splicing-syntax-class :annotate-or-empty
     (pattern (~seq))
     (pattern (~seq _::annotate-op _ ...))))
-  
+
 (define-for-syntax (parse-arg-context args-stx #:this? [this? #f])
   (define ht
     (syntax-parse args-stx
@@ -1828,7 +1828,8 @@
                                          (binding-prefix-operator-ref v))))))
        (let loop ([ht empty-equal_name_and_scopes-map]
                   [args (syntax->list #'(arg ...))]
-                  [i (if this? 1 0)])
+                  [i (if this? 1 0)]
+                  [kws empty-treelist])
          (cond
            [(null? args) ht]
            [else
@@ -1840,19 +1841,22 @@
                 [_ i]))
             (syntax-parse (car args)
               #:datum-literals (group)
-              [(group kw:keyword (_::block (group id:identifier _::annotate-op . _)))
-               (loop (hash-set ht (flip #'id) (syntax-e #'kw)) (cdr args) i)]
-              [(group kw:keyword . _) (loop ht (cdr args) i)]
+              [(group kw:keyword (_::block (group id:identifier _::annotate-or-empty . _)))
+               (define new-kws (treelist-add kws (syntax-e #'kw)))
+               (loop (hash-set ht (flip #'id) (syntax-e #'kw)) (cdr args) i new-kws)]
+              [(group kw:keyword . _)
+               (define new-kws (treelist-add kws (syntax-e #'kw)))
+               (loop ht (cdr args) i new-kws)]
               [(group id:identifier _::annotate-or-empty)
                #:when (not-binding-form? #'id)
-               (loop (hash-set ht (flip #'id) (at-pos i)) (cdr args) (add1 i))]
+               (loop (hash-set ht (flip #'id) (at-pos i)) (cdr args) (add1 i) kws)]
               [(group _::&-bind id:identifier _::annotate-or-empty . _)
                #:when (not-binding-form? #'id)
-               (loop (hash-set ht (flip #'id) (treelist 'splice i)) (cdr args) (add1 i))]
+               (loop (hash-set ht (flip #'id) (treelist 'splice i)) (cdr args) (add1 i) kws)]
               [(group _::~&-bind id:identifier _::annotate-or-empty . _)
                #:when (not-binding-form? #'id)
-               (loop (hash-set ht (flip #'id) 'keyword_splice) (cdr args) i)]
-              [_ (loop ht (cdr args) (add1 i))])]))]))
+               (loop (hash-set ht (flip #'id) (treelist-cons kws 'keyword_splice)) (cdr args) i kws)]
+              [_ (loop ht (cdr args) (add1 i) kws)])]))]))
   (annotation-context ht
                       (and this? 0)))
 

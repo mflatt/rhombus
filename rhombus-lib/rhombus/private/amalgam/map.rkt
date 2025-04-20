@@ -52,7 +52,8 @@
          "key-comp-property.rkt"
          "number.rkt"
          "same-hash.rkt"
-         (submod "map-maybe.rkt" for-map))
+         (submod "map-maybe.rkt" for-map)
+         "map-statinfo.rkt")
 
 (provide (for-spaces (rhombus/namespace
                       #f
@@ -1057,7 +1058,8 @@
 
 ;; for `++`
 (define-static-info-syntax Map.append/optimize
-  (#%call-result #,(get-map-static-infos)))
+  (#%call-result ((#%dependent-result (merge-keys-and-values #f))
+                  #,@(get-map-static-infos))))
 
 (define hash-extend*
   (case-lambda
@@ -1126,6 +1128,35 @@
               si])])])]
     [_ #`()]))
 
+(define-syntax (merge-keys-and-values data deps)
+  (define args (annotation-dependencies-args deps))
+  (cond
+    [(null? args)
+     #'()]
+    [else
+     (define si-pair
+       (for/fold ([si-pair (static-info-lookup (or (static-info-lookup (car args) #'#%sequence-element)
+                                                   #'())
+                                               #'#%values)])
+                 ([arg (in-list (cdr args))])
+         (syntax-parse si-pair
+           [(k v)
+            (syntax-parse (static-info-lookup (or (static-info-lookup arg #'#%sequence-element)
+                                                  #'())
+                                              #'#%values)
+              [(k2 v2)
+               #`(#,(static-infos-or #'k #'k2)
+                  #,(static-infos-or #'v #'v2))]
+              [_ #f])]
+           [_ #f])))
+     (syntax-parse si-pair
+       [(k v)
+        (if (or (not (static-infos-empty? #'k))
+                (not (static-infos-empty? #'v)))
+            #`((#%sequence-element ((#%values (k v)))))
+            #'())]
+       [_ #'()])]))
+
 (define/method (Map.keys ht [try-sort? #f])
   #:static-infos ((#%call-result ((#%dependent-result (select-key-or-value (key index)))
                                   #,@(get-treelist-static-infos))))
@@ -1180,7 +1211,8 @@
       (hash-set a k v))))
 
 (define/method Map.append
-  #:static-infos ((#%call-result #,(get-map-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (merge-keys-and-values #f))
+                                  #,@(get-map-static-infos))))
   (case-lambda
     [(ht)
      (check-map who ht)
@@ -1251,3 +1283,6 @@
 (define/method (MutableMap.remove ht key)
   #:primitive (hash-remove!)
   (hash-remove! ht key))
+
+(begin-for-syntax
+  (install-get-map-static-infos! get-map-static-infos))

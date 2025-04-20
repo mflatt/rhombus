@@ -44,7 +44,7 @@
          "list-last.rkt"
          "maybe-list-tail.rkt"
          (submod "range.rkt" for-substring)
-         (submod "range.rkt" for-info))
+         "treelist-statinfo.rkt")
 
 (provide (for-spaces (rhombus/namespace
                       #f
@@ -337,6 +337,24 @@
       #`((#%sequence-element #,elem-statinfo)
          #,@seq-si)
       seq-si))
+
+(define-syntax (merge-elems data deps)
+  (define res-statinfos (if (eq? (syntax-e data) 'treelist)
+                            (get-treelist-static-infos)
+                            (get-list-static-infos)))
+  (define args (annotation-dependencies-args deps))
+  (cond
+    [(null? args)
+     res-statinfos]
+    [else
+     (define si
+       (for/fold ([si (or (static-info-lookup (car args) #'#%index-result) #'())])
+                 ([arg (in-list (cdr args))])
+         (static-infos-or si (or (static-info-lookup arg #'#%index-result) #'()))))
+     (if (not (static-infos-empty? si))
+         #`((#%index-result #,si)
+            #,@res-statinfos)
+         res-statinfos)]))
 
 (define/arity (List.cons a d)
   #:primitive (treelist-cons)
@@ -1072,7 +1090,7 @@
 
 (define/method List.append
   #:primitive (treelist-append)
-  #:static-infos ((#%call-result #,(get-treelist-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elems treelist)))))
   (case-lambda
     [() empty-treelist]
     [(a) (treelist-append a)]
@@ -1083,7 +1101,7 @@
 ;; only check that the *last* argument is list here, since `append` checks the rest
 (define/method PairList.append
   #:primitive (append)
-  #:static-infos ((#%call-result #,(get-list-static-infos)))
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elems list)))))
   (case-lambda
     [() null]
     [(a)

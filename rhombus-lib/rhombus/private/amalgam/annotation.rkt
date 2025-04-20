@@ -42,7 +42,10 @@
          "index-result-key.rkt"
          "sequence-element-key.rkt"
          "values-key.rkt"
-         "class-this-id.rkt")
+         "class-this-id.rkt"
+         "treelist-statinfo.rkt"
+         "map-statinfo.rkt"
+         "keyword-statinfo.rkt")
 
 (provide (for-spaces (#f
                       rhombus/repet
@@ -1280,6 +1283,39 @@
               (list-ref args v))]
         [(keyword? v)
          (hash-ref (annotation-dependencies-kw-args deps) v #f)]
+        [(and (pair? v)
+              (or (eq? (car v) 'repet)
+                  (eq? (car v) 'splice)))
+         (define i (cadr v))
+         (define args (annotation-dependencies-args deps))
+         (cond
+           [(i . < . (length args))
+            (define si (for/fold ([si (car (list-tail args i))])
+                                 ([new-si (list-tail args (add1 i))])
+                         (static-infos-or si new-si)))
+            (if (eq? (car v) 'splice)
+                #`((#%index-result #,si)
+                   #,@(indirect-get-treelist-static-infos))
+                si)]
+           [else
+            (if (eq? (car v) 'splice)
+                (indirect-get-treelist-static-infos)
+                #f)])]
+        [(and (pair? v)
+              (eq? (car v) 'keyword_splice))
+         (define kw-args
+           (for/fold ([kw-args (annotation-dependencies-kw-args deps)]) ([kw (in-list (cdr v))])
+             (hash-remove kw-args kw)))
+         (define sis (hash-values kw-args))
+         (define si
+           (cond
+             [(null? sis) #'()]
+             [else (for/fold ([si (car sis)])
+                             ([new-si (cdr sis)])
+                     (static-infos-or si new-si))]))
+         #`((#%sequence-element ((#%values (#,(indirect-get-keyword-static-infos)
+                                            #,si))))
+            #,@(indirect-get-map-static-infos))]
         [else #f])
       #'()))
 
@@ -1292,7 +1328,8 @@
   
 (define-syntax (like-element-accessor data deps)
   (define si (get-argument-static-infos data deps))
-  (or (static-info-lookup si #'#%index-result)
+  (or (static-info-lookup si #'#%sequence-element)
+      (static-info-lookup si #'#%index-result)
       #'()))
 
 (define-annotation-syntax Any.like_element

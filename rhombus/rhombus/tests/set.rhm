@@ -1269,6 +1269,8 @@ block:
   check m2.to_list()[0].length() ~is 1
   let [str, ...] = ["x", "y"]
   check { str, ...}.to_list()[0].length() ~is 1
+  check ({"a"} ++ {"b"}).to_list()[0].length() ~is 1
+  check ({"a", "d"} ++ {"b", "c"}).to_list()[0].length() ~is 1
 
 check:
   ~eval

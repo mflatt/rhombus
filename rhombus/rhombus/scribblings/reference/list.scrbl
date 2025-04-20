@@ -39,7 +39,7 @@ it supplies its elements in order.
 @doc(
   ~nonterminal:
     listable_expr: block expr
-  fun List(v :: Any, ...) :: List
+  fun List(v :: Any, ...) :: List.of(Any.like(v))
   expr.macro 'List[$expr_or_splice, ...]'
   repet.macro 'List[$repet_or_splice, ...]'
   expr.macro '#%brackets [$expr_or_splice, ...]'
@@ -231,7 +231,8 @@ it supplies its elements in order.
 }
 
 @doc(
-  method (lst :: List).insert(n :: NonnegInt, elem :: Any) :: List
+  method (lst :: List).insert(n :: NonnegInt, elem :: Any)
+    :: List.of(Any.like_element(lst) || Any.like(elem))
 ){
 
  Creates a list like @rhombus(lst), but with @rhombus(elem) added before
@@ -247,7 +248,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).add(elem :: Any) :: List
+  method (lst :: List).add(elem :: Any)
+    :: List.of(Any.like_element(lst) || Any.like(elem))
 ){
 
  Creates a list like @rhombus(lst), but with @rhombus(elem) added to
@@ -265,7 +267,8 @@ it supplies its elements in order.
 
 
 @doc(
-  fun List.cons(elem :: Any, lst :: List) :: List
+  fun List.cons(elem :: Any, lst :: List)
+    :: List.of(Any.like_element(lst) || Any.like(elem))
 ){
 
  Creates a list like @rhombus(lst), but with @rhombus(elem) added to
@@ -310,7 +313,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).get(n :: NonnegInt) :: Any
+  method (lst :: List).get(n :: NonnegInt)
+    :: Any.like_element(lst)
 ){
 
  Equivalent to @rhombus(lst[n]) (with the default implicit
@@ -327,7 +331,8 @@ it supplies its elements in order.
 
 
 @doc(
-  property List.first(lst :: NonemptyList) :: Any
+  property List.first(lst :: NonemptyList)
+    :: Any.like_element(lst)
 ){
 
  Returns the first element of @rhombus(lst).
@@ -342,7 +347,8 @@ it supplies its elements in order.
 
 
 @doc(
-  property List.last(lst :: NonemptyList) :: Any
+  property List.last(lst :: NonemptyList)
+    :: Any.like_element(lst)
 ){
 
  Returns the last element of @rhombus(lst).
@@ -357,7 +363,8 @@ it supplies its elements in order.
 
 
 @doc(
-  property List.rest(lst :: NonemptyList) :: List
+  property List.rest(lst :: NonemptyList)
+    :: List.of(Any.like_element(lst))
 ){
 
  Returns a list like @rhombus(lst), but without its first element.
@@ -372,7 +379,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).delete(n :: NonnegInt) :: List
+  method (lst :: List).delete(n :: NonnegInt)
+    :: List.of(Any.like_element(lst))
 ){
 
  Creates a list like @rhombus(lst), but without the @rhombus(n)th
@@ -386,7 +394,8 @@ it supplies its elements in order.
 }
 
 @doc(
-  method (lst :: List).set(n :: NonnegInt, v :: Any) :: List
+  method (lst :: List).set(n :: NonnegInt, v :: Any)
+    :: List.of(Any.like_element(lst) || Any.like(elemv))
 ){
 
  Returns a list like @rhombus(lst), but with the @rhombus(n)th element
@@ -418,7 +427,8 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).reverse() :: List
+  method (lst :: List).reverse()
+    :: List.of(Any.like_element(lst))
 ){
 
  Returns a list with the same items as @rhombus(lst), but in reversed
@@ -452,8 +462,10 @@ it supplies its elements in order.
 
 
 @doc(
-  method (lst :: List).take(n :: NonnegInt) :: List
-  method (lst :: List).take_last(n :: NonnegInt) :: List
+  method (lst :: List).take(n :: NonnegInt)
+    :: List.of(Any.like_element(lst))
+  method (lst :: List).take_last(n :: NonnegInt)
+    :: List.of(Any.like_element(lst))
 ){
 
  Returns a list like @rhombus(lst), but with only the first @rhombus(n)

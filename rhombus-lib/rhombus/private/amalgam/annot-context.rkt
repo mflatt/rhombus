@@ -30,4 +30,5 @@
 (struct annotation-dependencies (args     ; list of static-infos
                                  kw-args  ; map of keyword -> static-infos
                                  rest?
-                                 kw-rest?))
+                                 kw-rest?)
+  #:transparent)

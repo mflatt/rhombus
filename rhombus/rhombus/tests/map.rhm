@@ -1583,6 +1583,10 @@ block:
   let [bstr, ...] = [#"00", #"11"]
   check { str: bstr, ...}.keys()[0].length() ~is 1
   check { str: bstr, ...}.values()[0].length() ~is 2
+  check ({"a": #"00"} ++ {"b": #"111"})["a"].length() ~is 2
+  check ({"a": #"00"} ++ {"b": #"111", "c": #"" })["b"].length() ~is 3
+  check ({"a": #"00"} ++ {"b": #"111"}).keys()[0].length() ~is 1
+  check ({"a": #"00"} ++ {"b": #"111", "c": #"" }).keys()[0].length() ~is 1
 
 check:
   ~eval
