@@ -947,7 +947,7 @@
      (binding-info #'"<converted predicate>"
                    #'arg
                    all-static-infos
-                   #`((arg (0) . #,all-static-infos))
+                   #`((arg ([#:repet ()]) . #,all-static-infos))
                    #'empty-oncer
                    (syntax-parse #'predicate
                      [(lam (_) #t) ;; matches `Any` and maybe more
