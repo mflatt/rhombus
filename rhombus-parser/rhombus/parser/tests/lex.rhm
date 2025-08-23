@@ -9,6 +9,13 @@ check:
   | (): #'zero
   ~throws "lexer can accept the empty string"
 
+check:
+  ~eval
+  import parser/lex open
+  lexer
+  | ~eof: lexeme
+  ~throws "misuse in an end-of-file lexer clause"
+
 block:
   def none:
     lexer:
@@ -56,11 +63,10 @@ block:
     | ("a"+) - "aaa":
         [lexeme.length(), // static
          lexeme]
-    | ~eof: lexeme
   let i = Port.Input.open_string("aaa")
   check as(i) ~is [2, "aa"]
   check as(i) ~is [1, "a"]
-  check as(i) ~is Port.eof
+  check as(i) ~is #'eof
 
 block:
   def bs:
@@ -147,4 +153,13 @@ block:
   check go(i) ~is "alpha"
   check go(i) ~is "strs"
   check go(i) ~is #'end_of_file
-  
+
+block:
+  def u:
+    lexer
+    | unicode.L: #'alpha
+    | [unicode.N]: #'numeric
+  let i = Port.Input.open_string("a1")
+  check u(i) ~is #'alpha
+  check u(i) ~is #'numeric
+  check u(i) ~is #'eof

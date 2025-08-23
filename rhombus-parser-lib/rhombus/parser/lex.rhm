@@ -41,7 +41,9 @@ space.enforest pattern:
 
 export:
   lexer
-  all_from(.rx)
+  only_space rx.rx_charset:
+    all_from(.rx)
+
   only_space pattern:
     ||        // union
     &&        // intersection
@@ -74,6 +76,8 @@ export:
     cntrl
     ascii
     latin1
+
+  unicode
 
   // for use only within lexer clauses
   lexeme
@@ -183,7 +187,7 @@ pattern.macro 'any':
 
 meta:
   fun pack_charset(cs):    
-    let [[start, end], ...] = rx.rx_charset_meta.unpack_int_ranges(cs)
+    let [start ..= end, ...] = rx.rx_charset_meta.unpack_ranges(cs)
     pattern_meta.pack(['union',
                        ['#{char-range}',
                         Syntax.inject(Char.from_int(start)),
@@ -232,6 +236,62 @@ def_charset_alias:
   ascii
   latin1
 
+namespace unicode:
+  import rhombus/rx.unicode open:
+    only_space rx.rx_charset
+
+  decl.nestable_macro 'def_cats:
+                         $c
+                         ...':
+   '«
+      export: $c ...
+      pattern.macro '$c':
+        let '$('$')(cs :: rx.rx_charset_meta.Parsed)' = 'unicode . $c'
+        pack_charset(cs)
+      ...
+    »'
+
+  def_cats:
+    Ll
+    Lu
+    Lt
+    Lm
+    Lx
+    Lo
+    L
+    Nd
+    Nl
+    No
+    N
+    Ps
+    Pe
+    Pi
+    Pf
+    Pc
+    Pd
+    Po
+    P
+    Mn
+    Mc
+    Me
+    M
+    Sc
+    Sk
+    Sm
+    So
+    S
+    Zl
+    Zp
+    Zs
+    Z
+    Cc
+    Cf
+    Cs
+    Cn
+    Co
+    C
+
+
 syntax_parameter.bridge _in_clause: #false
 meta:
   fun check_in_clause(self):
@@ -243,7 +303,7 @@ expr.macro 'lexeme':
   check_in_clause(self)
   if syntax_parameter_meta.lookup('_in_clause') == #'string
   | 'adjust_lexeme(lex.#{lexeme})'
-  | 'Port.eof'
+  | syntax_meta.error("misuse in an end-of-file lexer clause", self)
 expr.macro 'line':
   ~op_stx: self
   check_in_clause(self)
