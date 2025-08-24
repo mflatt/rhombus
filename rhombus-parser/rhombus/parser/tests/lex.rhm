@@ -16,6 +16,14 @@ check:
   | ~eof: lexeme
   ~throws "misuse in an end-of-file lexer clause"
 
+check:
+  ~eval
+  import parser/lex open
+  lexer
+  | ~eof: 1
+  | ~eof: 2
+  ~throws "second end-of-file clause not allowed"
+
 block:
   def none:
     lexer:
@@ -37,7 +45,7 @@ block:
   check abc(i) ~is #'a
   check abc(i) ~is #'b
   check abc(i) ~is #'c
-  check abc(i) ~is #'eof
+  check abc(i) ~is Port.eof
 
 block:
   def abc:
@@ -55,7 +63,7 @@ block:
   check abc(i) ~is #'ds
   check abc(i) ~is #'ds
   check abc(i) ~is #'es
-  check abc(i) ~is #'eof
+  check abc(i) ~is Port.eof
 
 block:
   def as:
@@ -66,7 +74,7 @@ block:
   let i = Port.Input.open_string("aaa")
   check as(i) ~is [2, "aa"]
   check as(i) ~is [1, "a"]
-  check as(i) ~is #'eof
+  check as(i) ~is Port.eof
 
 block:
   def bs:
@@ -75,7 +83,7 @@ block:
   let i = Port.Input.open_string("bbbbb")
   check bs(i) ~is "bbb"
   check bs(i) ~is "bb"
-  check bs(i) ~is #'eof
+  check bs(i) ~is Port.eof
 
 block:
   def bs:
@@ -84,7 +92,7 @@ block:
   let i = Port.Input.open_string("abzaez")
   check bs(i) ~is "abz"
   check bs(i) ~is "aez"
-  check bs(i) ~is #'eof
+  check bs(i) ~is Port.eof
 
 block:
   def bs:
@@ -95,7 +103,7 @@ block:
   check bs(i) ~is [1, "abz"]
   check bs(i) ~is [2, "aqz"]
   check bs(i) ~is [1, "aez"]
-  check bs(i) ~is #'eof
+  check bs(i) ~is Port.eof
 
 block:
   def bs:
@@ -103,7 +111,7 @@ block:
     | "a" (! "bc") "d": #'ok
   let i = Port.Input.open_string("axyzdabcd")
   check bs(i) ~is #'ok
-  check bs(i) ~is #'eof
+  check bs(i) ~is Port.eof
   let i2 = Port.Input.open_string("abcd")
   check bs(i2) ~throws "No match found"
 
@@ -113,7 +121,7 @@ block:
     | (any any "c") && ("a" any any): #'ok
   let i = Port.Input.open_string("abc")
   check bs(i) ~is #'ok
-  check bs(i) ~is #'eof
+  check bs(i) ~is Port.eof
   let i2 = Port.Input.open_string("acb")
   check bs(i2) ~throws "No match found"
 
@@ -127,7 +135,7 @@ block:
   check bs(i) ~is #'da
   check bs(i) ~is #'ad
   check bs(i) ~is #'da
-  check bs(i) ~is #'eof
+  check bs(i) ~is Port.eof
 
 block:
   def none:
@@ -162,4 +170,22 @@ block:
   let i = Port.Input.open_string("a1")
   check u(i) ~is #'alpha
   check u(i) ~is #'numeric
+  check u(i) ~is Port.eof
+
+block:
+  def u:
+    lexer:
+      ~allow_empty
+    | "": #'empty
+    | ~eof: #'eof
+  let i = Port.Input.open_string("")
   check u(i) ~is #'eof
+
+block:
+  def u:
+    lexer:
+      ~allow_empty
+    | "abc": #'abc
+    | any any any: #'any
+  let i = Port.Input.open_string("abc")
+  check u(i) ~is #'abc
