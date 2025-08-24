@@ -331,7 +331,7 @@ match. Still, the same syntax is used as much as possible, and the
   ~eval: lex_eval
   def lex:
     lexer
-    | #%brackets ["a"-"z"]: #'alpha
+    | ["a"-"z"]: #'alpha
   def i = Port.Input.open_string("amB")
   lex(i)
   lex(i)
@@ -366,6 +366,26 @@ match. Still, the same syntax is used as much as possible, and the
 
 )
 
+@examples(
+  ~eval: lex_eval
+  def lex:
+    lexer      
+    | "x" "a"+: ["+", lexeme]
+    | "x" "a"*: ["*", lexeme]
+    | "y" "b"?: ["?", lexeme]
+    | "z" "c"{3}: ["3", lexeme]
+    | "z" "c"{1 ..= 2}: ["1-2", lexeme]
+    | "z" "c"{4 ..}: ["4+", lexeme]
+  def i = Port.Input.open_string("xaaxybyzcccccczccczc")
+  lex(i)
+  lex(i)
+  lex(i)
+  lex(i)
+  lex(i)
+  lex(i)
+  lex(i)
+)
+
 }
 
 @doc(
@@ -383,6 +403,15 @@ match. Still, the same syntax is used as much as possible, and the
 ){
 
  Matches a single character.
+
+@examples(
+  ~eval: lex_eval
+  def lex:
+    lexer      
+    | "a" any* "z": lexeme
+  def i = Port.Input.open_string("aBC\n0_z!")
+  lex(i)
+)
 
 }
 
@@ -447,6 +476,17 @@ match. Still, the same syntax is used as much as possible, and the
  the @rhombus(alpha, ~at rhombus/rx_charset), etc., character set for
  more information.
 
+
+@examples(
+  ~eval: lex_eval
+  lex_pattern.macro 'octal':
+    '["0"-"7"]'
+  def lex:
+    lexer      
+    | "0" octal+: [lexeme, String.to_int(lexeme, ~radix: 8)]
+  def i = Port.Input.open_string("04448")
+  lex(i)
+)
 
 }
 

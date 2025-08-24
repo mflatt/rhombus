@@ -6,7 +6,8 @@
 (define implies '("rhombus-parser-lib"))
 
 (define build-deps '("base"
-                     "rhombus"))
+                     "rhombus"
+                     "rhombus-scribble-lib"))
 
 (define pkg-desc "Rhombus parser library")
 
