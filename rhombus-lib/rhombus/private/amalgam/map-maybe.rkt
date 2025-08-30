@@ -72,7 +72,8 @@
   arg-id)
 
 (define-for-syntax (do-extract-maybe-statinfo lhs-si)
-  (define si (static-info-lookup lhs-si #'#%index-result))
+  (define si (extract-index-uniform-result
+              (static-info-lookup lhs-si #'#%index-result)))
   (cond
     [(not si) #f]
     [(static-info-lookup si #'#%maybe)

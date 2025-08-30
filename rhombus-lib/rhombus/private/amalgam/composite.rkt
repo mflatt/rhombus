@@ -104,11 +104,15 @@
                                       (for/list ([accessor (in-list (syntax->list #'accessors))])
                                         (or (static-info-lookup #'static-infos accessor)
                                             #'()))]
+                                     [(and (syntax-e #'index-result-info?)
+                                           (static-info-lookup #'static-infos #'#%index-result))
+                                      => (lambda (si)
+                                           (for/list ([accessor (in-list (syntax->list #'accessors))]
+                                                      [i (in-naturals)])
+                                             (extract-index-result si i)))]
                                      [else
                                       (define infos
-                                        (or (and (syntax-e #'index-result-info?)
-                                                 (static-info-lookup #'static-infos #'#%index-result))
-                                            (and (syntax-e #'sequence-element-info?)
+                                        (or (and (syntax-e #'sequence-element-info?)
                                                  (static-info-lookup #'static-infos #'#%sequence-element))
                                             #'()))
                                       (for/list ([accessor (in-list (syntax->list #'accessors))])
@@ -132,13 +136,13 @@
                       [(() ()) #f]
                       [(car-infos cdr-infos) #'((car car-infos) (cdr cdr-infos))])))
              (or (and (syntax-e #'index-result-info?)
-                      (static-info-lookup/pair #'static-infos #'#%index-result))
+                      (extract-index-uniform-result (static-info-lookup/pair #'static-infos #'#%index-result)))
                  (and (syntax-e #'sequence-element-info?)
                       (static-info-lookup/pair #'static-infos #'#%sequence-element))
                  #'())]
             [(#t)
              (or (and (syntax-e #'index-result-info?)
-                      (static-info-lookup #'static-infos #'#%index-result))
+                      (extract-index-uniform-result (static-info-lookup #'static-infos #'#%index-result)))
                  (and (syntax-e #'sequence-element-info?)
                       (static-info-lookup #'static-infos #'#%sequence-element))
                  #'())]
@@ -148,7 +152,7 @@
                (and maybe-infos (list #`(#,key #,maybe-infos))))
              (append
               (or (and (syntax-e #'index-result-info?)
-                       (static-info-lookup/wrap #'static-infos #'#%index-result))
+                       (extract-index-uniform-result (static-info-lookup/wrap #'static-infos #'#%index-result)))
                   '())
               (or (and (syntax-e #'sequence-element-info?)
                        (static-info-lookup/wrap #'static-infos #'#%sequence-element))

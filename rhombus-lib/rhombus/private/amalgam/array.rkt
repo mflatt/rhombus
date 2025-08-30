@@ -244,10 +244,13 @@
   (define args (annotation-dependencies-args deps))
   (define arr-i 0)
   (define si
-    (or (static-info-lookup (or (and (< arr-i (length args))
-                                     (list-ref args arr-i))
-                                #'())
-                            #'#%index-result)
+    (or ((if (eq? 'value (syntax-e data))
+             extract-index-uniform-result
+             values)
+         (static-info-lookup (or (and (< arr-i (length args))
+                                      (list-ref args arr-i))
+                                 #'())
+                             #'#%index-result))
         #'()))
   (cond
     [(static-infos-empty? si)
