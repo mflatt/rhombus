@@ -631,23 +631,25 @@
   #'()
   #:parse-of parse-annotation-of/chaperone)
 
-(define-for-syntax (parse-list-annotation stx ctx [list-id #'List] [list-static-infos (get-treelist-static-infos)])
+(define-for-syntax (parse-list-annotation stx ctx [list-id #'List] [list-static-infos (get-treelist-static-infos)] [kind 'treelist])
   (syntax-parse stx
     #:datum-literals (group)
-    [(form-id (~and args (_::brackets arg ... last-arg (group _::...-expr))) . tail)
+    [(form-id (~and args (_::brackets arg ... last-arg (group _::...-bind))) . tail)
      #:with (ann::annotation ...) #'(arg ...)
      #:with last-ann::annotation #'last-arg
      (values (build-tuple-annotation (list #'form-id #'args) list-id
                                      #'(ann.parsed ...)
                                      #'last-ann.parsed
-                                     list-static-infos)
+                                     list-static-infos
+                                     kind)
              #'tail)]
     [(form-id (~and args (_::brackets arg ...)) . tail)
      #:with (ann::annotation ...) #'(arg ...)
      (values (build-tuple-annotation (list #'form-id #'args) list-id
                                      #'(ann.parsed ...)
                                      #f
-                                     list-static-infos)
+                                     list-static-infos
+                                     kind)
              #'tail)]))
 
 (define-annotation-syntax List.tuple_of
@@ -664,7 +666,7 @@
    '((default . stronger))
    'macro
    (lambda (stx ctx)
-     (parse-list-annotation stx ctx #'PairList (get-list-static-infos)))))
+     (parse-list-annotation stx ctx #'PairList (get-list-static-infos) 'list))))
 
 (define-annotation-constructor (PairList PairList.of)
   ()

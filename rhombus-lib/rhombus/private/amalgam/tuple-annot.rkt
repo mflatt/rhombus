@@ -19,12 +19,18 @@
 
 (provide (for-syntax build-tuple-annotation))
 
-(define-for-syntax (build-tuple-annotation src-stxes list-id anns last-ann treelist-static-infos)
-  (define base-pred #`(lambda (v)
-                        (and (treelist? v)
-                             (#,(if last-ann #'>= #'=)
-                              (treelist-length v)
-                              #,(length (syntax->list anns))))))
+(define-for-syntax (build-tuple-annotation src-stxes list-id anns last-ann treelist-static-infos kind)
+  (define base-pred (with-syntax ([x-list? (case kind
+                                             [(treelist) #'treelist?]
+                                             [(list) #'list?])]
+                                  [x-length (case kind
+                                              [(treelist) #'treelist-length]
+                                              [(list) #'length])])
+                      #`(lambda (v)
+                          (and (x-list? v)
+                               (#,(if last-ann #'>= #'=)
+                                (x-length v)
+                                #,(length (syntax->list anns)))))))
   (define (make-si sis last-si)
     (or (for/fold ([si last-si]) ([a-si (in-list (syntax->list sis))]
                                   [i (in-naturals)])
@@ -45,12 +51,25 @@
                                       #'()))
                            (lambda (v)
                              (and (#,base-pred v)
-                                  (pred-id (treelist-ref v idx))
-                                  ...
-                                  #,@(if last-pred
-                                         #`((for/and ([i (in-range #,(length preds) (treelist-length v))])
-                                              (last-pred-id (treelist-ref v i))))
-                                         #'())))))      
+                                  #,(case kind
+                                      [(treelist)
+                                       #`(and (pred-id (treelist-ref v idx))
+                                              ...
+                                              #,@(if last-pred
+                                                     #`((for/and ([i (in-range #,(length preds) (treelist-length v))])
+                                                          (last-pred-id (treelist-ref v i))))
+                                                     #'()))]
+                                      [(list)
+                                       (let loop ([pred-ids (syntax->list #'(pred-id ...))])
+                                         (cond
+                                           [(null? pred-ids)
+                                            (if last-pred
+                                                #`(for/and ([i (in-list v)])
+                                                    (last-pred-id i))
+                                                #'#t)]
+                                           [else #`(and (#,(car pred-ids) (car v))
+                                                        (let ([v (cdr v)])
+                                                          #,(loop (cdr pred-ids))))]))])))))
       (annotation-predicate-form new-pred
                                  #`((#%index-result #,si)
                                     . #,treelist-static-infos))))
