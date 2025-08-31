@@ -228,7 +228,7 @@
                         (syntax*? (treelist-ref r 1)))))
       (raise-annotation-failure who
                                 infos
-                                "matching([[_ :: Int, _ :: Syntax], ...])"))
+                                "[[Int, Syntax], ...]"))
     (cond
       [(and (= 1 (treelist-length infos))
             (eqv? -1 (treelist-ref (treelist-ref infos 0) 0)))
