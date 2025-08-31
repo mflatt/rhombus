@@ -64,14 +64,13 @@
          (for-spaces (rhombus/namespace
                       rhombus/annot)
                      NonemptyList
-                     NonemptyPairList)
-         (for-space rhombus/annot
-                    #%brackets))
+                     NonemptyPairList))
 
 (module+ for-binding
   (provide (for-syntax parse-list-binding
                        parse-list-expression
-                       parse-list-repetition)))
+                       parse-list-repetition
+                       parse-list-annotation)))
 
 (module+ for-builtin
   (provide treelist-method-table
@@ -632,7 +631,7 @@
   #'()
   #:parse-of parse-annotation-of/chaperone)
 
-(define-for-syntax (parse-list-annotation stx list-id list-static-infos)
+(define-for-syntax (parse-list-annotation stx ctx [list-id #'List] [list-static-infos (get-treelist-static-infos)])
   (syntax-parse stx
     #:datum-literals (group)
     [(form-id (~and args (_::brackets arg ... last-arg (group _::...-expr))) . tail)
@@ -651,21 +650,13 @@
                                      list-static-infos)
              #'tail)]))
 
-(define-annotation-syntax #%brackets
-  (annotation-prefix-operator
-   #f
-   '((default . stronger))
-   'macro
-   (lambda (stx ctx)
-     (parse-list-annotation stx #'List (get-treelist-static-infos)))))
-
 (define-annotation-syntax List.tuple_of
   (annotation-prefix-operator
    #f
    '((default . stronger))
    'macro
    (lambda (stx ctx)
-     (parse-list-annotation stx #'List (get-treelist-static-infos)))))
+     (parse-list-annotation stx ctx))))
 
 (define-annotation-syntax PairList.tuple_of
   (annotation-prefix-operator
@@ -673,7 +664,7 @@
    '((default . stronger))
    'macro
    (lambda (stx ctx)
-     (parse-list-annotation stx #'PairList (get-list-static-infos)))))
+     (parse-list-annotation stx ctx #'PairList (get-list-static-infos)))))
 
 (define-annotation-constructor (PairList PairList.of)
   ()

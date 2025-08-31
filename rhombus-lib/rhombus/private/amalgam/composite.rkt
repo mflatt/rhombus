@@ -105,7 +105,8 @@
                                       (for/list ([accessor (in-list (syntax->list #'accessors))])
                                         (or (static-info-lookup #'static-infos accessor)
                                             #'()))]
-                                     [(and (syntax-e #'index-result-info?)
+                                     [(and (syntax-e #'list-index-static-infos?)
+                                           (syntax-e #'index-result-info?)
                                            (static-info-lookup #'static-infos #'#%index-result))
                                       => (lambda (si)
                                            (for/list ([accessor (in-list (syntax->list #'accessors))]
@@ -113,7 +114,10 @@
                                              (extract-index-result si i)))]
                                      [else
                                       (define infos
-                                        (or (and (syntax-e #'sequence-element-info?)
+                                        (or (and (syntax-e #'index-result-info?)
+                                                 (extract-index-uniform-result
+                                                  (static-info-lookup #'static-infos #'#%index-result)))
+                                            (and (syntax-e #'sequence-element-info?)
                                                  (static-info-lookup #'static-infos #'#%sequence-element))
                                             #'()))
                                       (for/list ([accessor (in-list (syntax->list #'accessors))])

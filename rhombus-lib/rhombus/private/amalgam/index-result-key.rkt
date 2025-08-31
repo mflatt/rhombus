@@ -101,7 +101,7 @@
   (define-values (a-default a-ht) (parse-index-results a))
   (define-values (b-default b-ht) (parse-index-results b))
   (define defaults (and (or a-default b-default)
-                        (static-infos-or (or a-default #'()) (or b-default #'()))))
+                        (static-infos-and (or a-default #'()) (or b-default #'()))))
   (cond
     [(and (= 0 (hash-count a-ht))
           (= 0 (hash-count b-ht)))
