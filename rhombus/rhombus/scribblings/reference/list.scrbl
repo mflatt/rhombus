@@ -723,6 +723,23 @@ it supplies its elements in order.
 
 
 @doc(
+  method (lst :: List).enumerate(start :: NonnegInt = 0)
+    :: List.of([NonnegInt, Any.like_element(lst)])
+){
+
+ Returns a list containing 2-element lists of an index and the
+ corresponding element of @rhombus(lst). Indices are assigned starting
+ with the number @rhombus(start).
+
+@examples(
+  ["a", "b", "c"].enumerate()
+  ["a", "b", "c"].enumerate(100)
+)
+
+}
+
+
+@doc(
   fun List.iota(n :: NonnegInt) :: List.of(NonnegInt)
 ){
 

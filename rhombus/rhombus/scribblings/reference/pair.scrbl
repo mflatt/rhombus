@@ -593,6 +593,23 @@ which case it supplies its elements in order.
 
 
 @doc(
+  method (lst :: PairList).enumerate(start :: NonnegInt = 0)
+    :: PairList.of(PairList)
+){
+
+ Returns a pair list containing 2-element pair lists of an index and the
+ corresponding element of @rhombus(lst). Indices are assigned starting
+ with the number @rhombus(start).
+
+@examples(
+  PairList["a", "b", "c"].enumerate()
+  PairList["a", "b", "c"].enumerate(100)
+)
+
+}
+
+
+@doc(
   fun PairList.iota(n :: NonnegInt) :: PairList.of(NonnegInt)
 ){
 

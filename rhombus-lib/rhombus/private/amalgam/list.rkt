@@ -79,7 +79,8 @@
 
 (module+ for-compound-repetition
   (provide (for-syntax get-list-static-infos
-                       get-treelist-static-infos)))
+                       get-treelist-static-infos
+                       get-enum-element-static-infos)))
 
 (module+ for-listable
   (provide prop:Listable Listable? Listable-ref
@@ -150,6 +151,7 @@
    partition
    sort
    to_list
+   enumerate
    to_sequence
    copy))
 
@@ -196,6 +198,7 @@
    partition
    sort
    to_list
+   enumerate
    to_sequence))
 
 (define-primitive-class MutableList mutable-treelist
@@ -312,6 +315,11 @@
      (define si
        (cond
          [(not elem-i*) lst-si]
+         [(eq? elem-i* 'enum)
+          (get-enum-element-static-infos lst-si res-statinfos)]
+         [(eq? elem-i* 'enum*)
+          #`((#%index-result #,res-statinfos)
+             #,@res-statinfos)]
          [else
           (define elem-i (if (eq? elem-i* 'call1) 1 elem-i*))
           (define elem-si (or (and (< elem-i (length args))
@@ -324,6 +332,15 @@
          #`((#%index-result #,si)
             #,@res-statinfos)
          res-statinfos)]))
+
+(define-for-syntax (get-enum-element-static-infos elem-si list-statinfos)
+  #`((#%index-result (#:at_index ()
+                      (0 #,(get-int-static-infos))
+                      #,@(if (and elem-si
+                                  (not (static-infos-empty? elem-si)))
+                             #`((1 #,elem-si))
+                             #'())))
+     #,@list-statinfos))
 
 (define-syntax (select-elem data deps)
   (define args (annotation-dependencies-args deps))
@@ -1067,6 +1084,26 @@
   #:static-infos ((#%call-result ((#%dependent-result (merge-elem (0 #f treelist))))))
   (check-mutable-treelist who lst)
   (mutable-treelist-snapshot lst))
+
+(define (check-start-index who start)
+  (unless (exact-nonnegative-integer? start)
+    (raise-annotation-failure who start "NonnegInt")))
+
+(define/method (List.enumerate lst [start 0])
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elem (0 enum treelist))))))
+  (check-treelist who lst)
+  (check-start-index who start)
+  (for/treelist ([e (in-treelist lst)]
+                 [i (in-naturals start)])
+    (treelist i e)))
+
+(define/method (PairList.enumerate lst [start 0])
+  #:static-infos ((#%call-result ((#%dependent-result (merge-elem (0 enum* list))))))
+  (check-list who lst)
+  (check-start-index who start)
+  (for/list ([e (in-list lst)]
+             [i (in-naturals start)])
+    (list i e)))
 
 (define/method (MutableList.snapshot lst)
   #:primitive (mutable-treelist-snapshot)

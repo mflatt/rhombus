@@ -31,6 +31,7 @@ block:
     PairList.iota(n)
     PairList.to_list(lst) ~method
     PairList.to_sequence(lst) ~method
+    PairList.enumerate(lst, [start]) ~method
 
 check:
   PairList.length(PairList[1, 2, 3])
@@ -684,3 +685,5 @@ block:
   check los.to_list()[0].length() ~is 1
   check (for List (e in los.to_sequence()): e.length()) ~is [1, 1, 1]
   check (PairList["a"] ++ PairList["b"])[0].length() ~is 1
+  check los.enumerate()[0].length() ~is 2
+  check los.enumerate()[0][1] ~is "a"

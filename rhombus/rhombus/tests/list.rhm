@@ -37,6 +37,7 @@ block:
     List.copy(lst) ~method
     List.to_list(lst) ~method
     List.to_sequence(lst) ~method
+    List.enumerate(lst, [start]) ~method
 
 check:
   List.length([1, 2, 3])
@@ -973,6 +974,13 @@ block:
   check los.filter(~keep: (_ == "a"))[0].length() ~is 1
   check los.sort((_ :: String < _))[0].length() ~is 1
   check los.to_list()[0].length() ~is 1
+  check los.enumerate()[0].length() ~is 2
+  check los.enumerate()[0][1] ~is "a"
+  block:
+    let [[i, v], ...] = los.enumerate()
+    check [v, ...][0].length() ~is 1
+    check [i, ...][0] < [i, ...][0] ~is #false
+    check [i, ...][0] < 10 ~is #true
   check (for List (e in los.to_sequence()): e.length()) ~is [1, 1, 1]
   def mlos :: MutableList.later_of(String) = MutableList["a", "b", "c"]
   check mlos.snapshot().get(0).length() ~is 1
