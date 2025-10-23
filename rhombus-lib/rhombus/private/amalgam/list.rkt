@@ -116,7 +116,7 @@
   ([cons List.cons]
    [empty empty-treelist]
    [iota List.iota]
-   [repet List.repet]
+   [repet List.repet #:deprecate (rhombus/repet) "15-Nov-2025"]
    [of List.of]
    [later_of List.later_of]
    [tuple_of List.tuple_of])
@@ -169,7 +169,7 @@
   ([cons PairList.cons]
    [empty null]
    [iota PairList.iota]
-   [repet PairList.repet]
+   [repet PairList.repet #:deprecate (rhombus/repet) "15-Nov-2025"]
    [of PairList.of]
    [tuple_of PairList.tuple_of])
   #:properties
