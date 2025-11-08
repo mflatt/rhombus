@@ -10,6 +10,7 @@
          "function-arity-key.rkt"
          "function-arity.rkt"
          "dot-provider-key.rkt"
+         "indirect-static-info-key.rkt"
          "static-info.rkt"
          "class-able.rkt"
          "class-forward-annot.rkt")
@@ -21,6 +22,8 @@
 
 (define-for-syntax (extract-instance-static-infoss name-id options super interfaces
                                                    private-interfaces protected-interfaces
+                                                   internal-id
+                                                   dot-providers internal-dot-providers
                                                    intro)
   (define call-statinfo-indirect-id
     (able-statinfo-indirect-id 'call super interfaces name-id intro))
@@ -43,25 +46,81 @@
                                (intro (datum->syntax #f (string->symbol
                                                          (format "~a-statinfo" (syntax-e name-id)))))))
 
-  (define (get-instance-static-infos internal?)
-    #`(#,@(if static-infos-id
-              #`((#,(quote-syntax unsyntax-splicing) (syntax-local-value (quote-syntax #,static-infos-id))))
-              #'())
-       #,@(if super
-              (objects-desc-static-infos super)
-              #'())
-       #,@(apply
-           append
-           (for/list ([intf (in-list interfaces)]
-                      #:unless (and (not internal?)
-                                    (or
-                                     (hash-ref private-interfaces intf #f)
-                                     (hash-ref protected-interfaces intf #f))))
-             (syntax->list
-              (objects-desc-static-infos intf))))))
+  (define (get-instance-static-infos-expr internal?)
+    (define most-static-infos
+      (for/list ([intf (in-list (if super (cons super interfaces) interfaces))]
+                 #:unless (and (not internal?)
+                               (or
+                                (hash-ref private-interfaces intf #f)
+                                (hash-ref protected-interfaces intf #f)))
+                 #:unless (null? (syntax-e (objects-desc-static-infos intf))))
+        (objects-desc-static-infos intf)))
+    (cond
+      [(and (or (null? most-static-infos)
+                (null? (cdr most-static-infos)))
+            (not static-infos-id))
+       (if (null? most-static-infos)
+           #'()
+           (car most-static-infos))]
+      [(null? most-static-infos)
+       #`((#%indirect-static-info #,static-infos-id))]
+      [else
+       #`((#,(quote-syntax unsyntax-splicing)
+           (static-infos-and
+            #,@(if static-infos-id
+                   #`(#'((#%indirect-static-info #,static-infos-id)))
+                   #'())
+            #,@(for/list ([si (in-list most-static-infos)])
+                 #`(#,(quote-syntax quasisyntax) #,si)))))]))
 
-  (define instance-static-infos (get-instance-static-infos #f))
-  (define internal-instance-static-infos (get-instance-static-infos #t))
+  (define instance-static-infos-expr (get-instance-static-infos-expr #f))
+  (define internal-instance-static-infos-expr (if internal-id
+                                                  (get-instance-static-infos-expr #t)
+                                                  #'()))
+
+  (define instance-static-infos-id (and (pair? (syntax-e instance-static-infos-expr))
+                                        (intro (datum->syntax #f (string->symbol
+                                                                  (format "~a-instance-statinfo" (syntax-e name-id)))))))
+  (define internal-instance-static-infos-id (and (pair? (syntax-e internal-instance-static-infos-expr))
+                                                 (intro (datum->syntax #f (string->symbol
+                                                                           (format "~a-internal-instance-statinfo" (syntax-e name-id)))))))
+
+  (define instance-static-infos
+    (if instance-static-infos-id
+        #`((#%indirect-static-info #,instance-static-infos-id))
+        #'()))
+
+  (define internal-instance-static-infos
+    (if internal-instance-static-infos-id
+        #`((#%indirect-static-info #,internal-instance-static-infos-id))
+        #'()))
+
+  (define (build-dot-provider-merge dot-providers
+                                    instance-static-infos
+                                    name-template)
+    (define dp #`((#%dot-provider #,dot-providers)))
+    (cond
+      [(null? (syntax-e instance-static-infos))
+       (values #f #f dp)]
+      [else
+       (define id (and (pair? (syntax-e instance-static-infos))
+                       (intro (datum->syntax #f (string->symbol
+                                                 (format name-template (syntax-e name-id)))))))
+       (values id
+               #`((#,(quote-syntax unsyntax-splicing)
+                   (static-infos-and #'#,dp
+                                     (#,(quote-syntax quasisyntax) #,instance-static-infos))))
+               #`((#%indirect-static-info #,id)))]))
+
+  (define-values (dot-static-infos-id dot-static-infos-expr dot-static-infos)
+    (build-dot-provider-merge dot-providers
+                              instance-static-infos
+                              "~a-dot-statinfo"))
+
+  (define-values (internal-dot-static-infos-id internal-dot-static-infos-expr internal-dot-static-infos)
+    (build-dot-provider-merge internal-dot-providers
+                              internal-instance-static-infos
+                              "~a-internal-dot-statinfo"))
 
   (define common-indirect-static-infos
     #`(#,@(if call-statinfo-indirect-id
@@ -83,12 +142,12 @@
               #`((#%indirect-static-info #,contains-statinfo-indirect-id))
               #'())))
 
-  (define indirect-static-infos
-    #`(#,@common-indirect-static-infos
-       #,@instance-static-infos))
-  (define internal-indirect-static-infos
-    #`(#,@common-indirect-static-infos
-       #,@internal-instance-static-infos))
+  (define all-static-infos
+    #`(#,@dot-static-infos
+       #,@common-indirect-static-infos))
+  (define internal-all-static-infos
+    #`(#,@internal-dot-static-infos
+       #,@common-indirect-static-infos))
 
   (values call-statinfo-indirect-id
           index-statinfo-indirect-id
@@ -99,21 +158,64 @@
 
           super-call-statinfo-indirect-id
 
-          static-infos-id
-          static-infos-exprs
-          instance-static-infos
+          ;; has only statinfos provided by `static_info` class clause:
+          static-infos-id       ; defined by `build-instance-static-infos-defs`
+          static-infos-exprs    ; RHS of definition
 
-          indirect-static-infos
-          internal-indirect-static-infos))
+          ;; has `static_info` class clause merged with supers:
+          instance-static-infos-id   ; defined by `build-instance-static-infos-defs`
+          instance-static-infos-expr ; RHS of definition
+          instance-static-infos      ; only saved in `class-desc`
 
-(define-for-syntax (build-instance-static-infos-defs static-infos-id static-infos-exprs)
-  (if static-infos-id
-      (list
-       #`(define-syntax #,static-infos-id
-           (#,(quote-syntax quasisyntax)
-            (#,@(for/list ([expr (in-list (reverse static-infos-exprs))])
-                  #`(#,(quote-syntax unsyntax-splicing) (pack-static-infos 'static_info #,expr)))))))
-      null))
+          ;; ditto, but for inetrnal name:
+          internal-instance-static-infos-id   ; defined by `build-instance-static-infos-defs`
+          internal-instance-static-infos-expr ; RHS of definition
+
+          ;; includes indirects for primitive interfaces, and also
+          ;; merges in dot provider:
+          dot-static-infos-id   ; defined by `build-instance-static-infos-defs`
+          dot-static-infos-expr ; RHS of definition
+
+          ;; ditto, but for an internal name:
+          internal-dot-static-infos-id   ; defined by `build-instance-static-infos-defs`
+          internal-dot-static-infos-expr ; RHS of definition
+
+          ;; refers to `[internal-]dot-static-infos-id` --- or inlines if simple enough
+          ;; so that no separate definition is needed --- and does not include any
+          ;; unquotes:
+          all-static-infos
+          internal-all-static-infos))
+
+(define-for-syntax (build-instance-static-infos-defs static-infos-id static-infos-exprs
+                                                     instance-static-infos-id instance-static-infos-expr
+                                                     internal-instance-static-infos-id internal-instance-static-infos-expr
+                                                     dot-static-infos-id dot-static-infos-expr
+                                                     internal-dot-static-infos-id internal-dot-static-infos-expr)
+  (define (make-lazy id expr)
+    (if id
+        (list
+         #`(define-syntax #,(in-static-info-space id)
+             ;; perform merge laziy
+             (let ([si #f])
+               (static-info (lambda ()
+                              (unless si
+                                (set! si (#,(quote-syntax quasisyntax) #,expr)))
+                              (if (syntax? si) (syntax->list si) si))))))
+        null))
+  (append
+   (if static-infos-id
+       (list
+        #`(define-syntax #,(in-static-info-space static-infos-id)
+            ;; evaluate `expr` eagerly, since it's provided by the user
+            (let ([si (#,(quote-syntax quasisyntax)
+                       (#,@(for/list ([expr (in-list (reverse static-infos-exprs))])
+                             #`(#,(quote-syntax unsyntax-splicing) (pack-static-infos 'static_info #,expr)))))])
+              (static-info (lambda () (syntax->list si))))))
+       null)
+   (make-lazy instance-static-infos-id instance-static-infos-expr)
+   (make-lazy internal-instance-static-infos-id internal-instance-static-infos-expr)
+   (make-lazy dot-static-infos-id dot-static-infos-expr)
+   (make-lazy internal-dot-static-infos-id internal-dot-static-infos-expr)))
 
 (define-for-syntax (build-class-static-infos exposed-internal-id
                                              super
@@ -127,8 +229,7 @@
                                              #:veneer? [veneer? #f])
   (with-syntax ([(name constructor-name name-instance
                        internal-name-instance make-internal-name
-                       indirect-static-infos
-                       dot-providers internal-dot-providers
+                       all-static-infos internal-all-static-infos
                        [name-field ...]
                        [field-static-infos ...]
                        [public-name-field ...]
@@ -173,21 +274,20 @@
                         #'())]))
            (with-syntax ([define-static-info-syntax define-static-info-syntax-id]
                          [(extra ...) def-extras]
-                         [(dep-result ...) dep-results])
+                         [(dep-result ...) dep-results]
+                         [(all-static-info ...) #'all-static-infos])
              (list
-              #'(define-static-info-syntax constructor-name
+              #`(define-static-info-syntax constructor-name
                   extra ...
-                  (#%call-result (dep-result ...
-                                             (#%dot-provider dot-providers)
-                                             . indirect-static-infos))
+                  (#%call-result (dep-result ... all-static-info ...))
                   (#%function-arity arity-mask)
-                  . #,(get-function-static-infos)))))
+                  . (#,(quote-syntax unsyntax) (get-function-static-infos))))))
          null)
      (if (and exposed-internal-id
               (syntax-e #'make-internal-name))
          (list
           (with-syntax ([result-infos
-                         (let* ([infos #'((#%dot-provider internal-dot-providers))]
+                         (let* ([infos #'internal-all-static-infos]
                                 [infos (if super
                                            (with-syntax ([(info ...) infos])
                                              #'((#%call-result (info ... . #,(get-function-static-infos)))))

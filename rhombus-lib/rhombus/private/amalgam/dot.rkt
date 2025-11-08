@@ -246,6 +246,11 @@
                      [else #f]))
                  (fail))]
     [(hash-ref ht field #f) => (lambda (acc) (acc v))]
+    [(and (port? v)
+          (field-name->accessor-ref v #f)
+          ;; special case: fall back to port methods
+          (hash-ref (builtin->accessor-ref v) field #f))
+     => (lambda (acc) (acc v))]
     [else (fail)]))
 
 (define (dot-assign-by-name v field new-val)
