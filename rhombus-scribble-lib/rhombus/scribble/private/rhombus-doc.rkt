@@ -252,6 +252,9 @@
      (hash 'result_annotation #'id)]
     [(id:identifier (alts . _))
      (hash 'result_annotation #'id)]
+    [((~var id (identifier-target 'rhombus/annot)))
+     (define t (hash-ref (syntax-e #'id.name) 'target #f))
+     (and t (hash 'result_annotation t))]
     [_
      #f]))
 

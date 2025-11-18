@@ -1543,4 +1543,198 @@ html:
                      "#%28def._%28%28lib._rhombus%2Fscribble%2Ftests%2Fstring_ext..rhm%29._.String._%28.String..more._~23false._string_more_rhs%29%29%29"}:
                   "rhs4"
               "."
+          section:
+            h2:
+              "5"
+              span {class: "stt"}: nbsp
+              a:«»
+              a:«»
+              "Nested"
+              span {class: "button-group"}:
+                a {class: "heading-anchor", href: "#(part._.Nested)"}: "🔗"
+                span {style: "visibility: hidden"}: " "
+            p:
+              table:
+                tr:
+                  td:
+                    span {class: "hspace"}: nbsp
+                    span {class: "stt"}: span {class: "RktSym"}: "import"
+                    span {class: "stt"}: ": "
+                    a {class: "RktModLink",
+                       href:
+                         "#%28mod-path._%28lib._.%27rhombus%2Fdate..rhm.%27%29%29"}:
+                      span {class: "stt"}:
+                        "rhombus"
+                      span {class: "stt"}: "/"
+                      span {class: "stt"}:
+                        "date"
+                  td:
+                    span {class: "RpackageSpec"}:
+                      span {class: "Smaller"}:
+                        nbsp
+                        "package:"
+                      " "
+                      a {href:
+                           "https://pkgs.racket-lang.org/package/rhombus-lib"}:
+                        span {class: "stt"}: "rhombus-lib"
+            p:
+              div {class: "SIntrapara"}:
+                table:
+                  tr:
+                    td:
+                      div {class: "RBackgroundLabel SIEHidden"}:
+                        div {class: "RBackgroundLabelInner"}: p: "class"
+                  tr:
+                    td:
+                      table:
+                        tr:
+                          td:
+                            p:
+                              span {class: "stt"}: "class"
+                              span {class: "hspace"}: nbsp
+                              a:«»
+                              a:«»
+                              a:«»
+                              a:«»
+                              span:
+                                span {class: "RktSym"}: "date."
+                                span {class: "RktSym"}:
+                                  a {class: "RktValDef RktValLink",
+                                     href:
+                                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date%29%29"}:
+                                    "Date"
+                              span {class: "RktPn"}: "("
+                              span {class: "RktPn"}: ")"
+                  tr: td: p: span {class: "hspace"}: nbsp
+                  tr:
+                    td:
+                      div {class: "RBackgroundLabel SIEHidden"}:
+                        div {class: "RBackgroundLabelInner"}: p: "method"
+                  tr:
+                    td:
+                      table:
+                        tr:
+                          td:
+                            p:
+                              span {class: "stt"}: "method"
+                              span {class: "hspace"}: nbsp
+                              span {class: "RktPn"}: "("
+                              span {class: "RktVar"}: "d"
+                              span {class: "hspace"}: nbsp
+                              span {class: "stt"}: "::"
+                              span {class: "hspace"}: nbsp
+                              span {class: "stt"}:
+                                "date."
+                                a {class: "RktValDef RktValLink",
+                                   href:
+                                     "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date._rhombus%2Fannot%29%29"}:
+                                  "Date"
+                              span {class: "RktPn"}: ")"
+                              span {class: "stt"}: "."
+                              a:«»
+                              span:
+                                span {class: "RktSym"}:
+                                  a {class: "RktValDef RktValLink",
+                                     href:
+                                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date._%28.Date..to_datetime._~23false%29%29%29"}:
+                                    "to_datetime"
+                              span {class: "RktPn"}: "("
+                              span {class: "RktPn"}: ")"
+                              span {class: "hspace"}: nbsp
+                              span {class: "stt"}: "::"
+                              span {class: "hspace"}: nbsp
+                              span {class: "stt"}:
+                                "date."
+                                a {class: "RktValLink",
+                                   href:
+                                     "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date.Time._rhombus%2Fannot%29%29"}:
+                                  "DateTime"
+                  tr: td: p: span {class: "hspace"}: nbsp
+                  tr:
+                    td:
+                      div {class: "RBackgroundLabel SIEHidden"}:
+                        div {class: "RBackgroundLabelInner"}: p: "class"
+                  tr:
+                    td:
+                      table:
+                        tr:
+                          td:
+                            p:
+                              span {class: "stt"}: "class"
+                              span {class: "hspace"}: nbsp
+                              a:«»
+                              a:«»
+                              a:«»
+                              a:«»
+                              span:
+                                span {class: "RktSym"}: "date."
+                                span {class: "RktSym"}:
+                                  a {class: "RktValDef RktValLink",
+                                     href:
+                                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date.Time%29%29"}:
+                                    "DateTime"
+                              span {class: "RktPn"}: "("
+                              span {class: "RktPn"}: ")"
+                  tr: td: p: span {class: "hspace"}: nbsp
+                  tr:
+                    td:
+                      div {class: "RBackgroundLabel SIEHidden"}:
+                        div {class: "RBackgroundLabelInner"}: p: "method"
+                  tr:
+                    td:
+                      table:
+                        tr:
+                          td:
+                            p:
+                              span {class: "stt"}: "method"
+                              span {class: "hspace"}: nbsp
+                              span {class: "RktPn"}: "("
+                              span {class: "RktVar"}: "d"
+                              span {class: "hspace"}: nbsp
+                              span {class: "stt"}: "::"
+                              span {class: "hspace"}: nbsp
+                              span {class: "stt"}:
+                                "date."
+                                a {class: "RktValDef RktValLink",
+                                   href:
+                                     "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date.Time._rhombus%2Fannot%29%29"}:
+                                  "DateTime"
+                              span {class: "RktPn"}: ")"
+                              span {class: "stt"}: "."
+                              a:«»
+                              span:
+                                span {class: "RktSym"}:
+                                  a {class: "RktValDef RktValLink",
+                                     href:
+                                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date.Time._%28.Date.Time..to_string._~23false%29%29%29"}:
+                                    "to_string"
+                              span {class: "RktPn"}: "("
+                              span {class: "RktPn"}: ")"
+              div {class: "SIntrapara"}:
+                "Prefixed and chained "
+                span {class: "stt"}:
+                  "date."
+                  a {class: "RktValLink",
+                     href:
+                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date%29%29"}:
+                    "Date"
+                span {class: "RktPn"}: "("
+                span {class: "RktPn"}: ")"
+                span {class: "stt"}: "."
+                span {class: "stt"}:
+                  a {class: "RktValLink",
+                     href:
+                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date._%28.Date..to_datetime._~23false%29%29%29"}:
+                    "to_datetime"
+                span {class: "RktPn"}: "("
+                span {class: "RktPn"}: ")"
+                span {class: "stt"}: "."
+                span {class: "stt"}:
+                  a {class: "RktValLink",
+                     href:
+                       "#%28def._%28%28lib._rhombus%2Fdate..rhm%29._.Date.Time._%28.Date.Time..to_string._~23false%29%29%29"}:
+                    "to_string"
+                span {class: "RktPn"}: "("
+                span {class: "RktPn"}: ")"
+                "."
     div: nbsp

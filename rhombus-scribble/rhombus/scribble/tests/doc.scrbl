@@ -17,7 +17,8 @@
           syntax_meta
       rhombus/scribble/tests/string_ext open
       rhombus/draw
-      rhombus/cmdline)
+      rhombus/cmdline
+      rhombus/date)
 
 @title{Example}
 
@@ -170,5 +171,20 @@ Starting example:
 
  Nonterminal links: @rhombus(rhs), @rhombus(rhs2), @rhombus(rhs3),
  @rhombus(rhs4).
+
+}
+
+@section{Nested}
+
+@docmodule(rhombus/date)
+
+@doc(
+  class date.Date()
+  method (d :: date.Date).to_datetime() :: date.DateTime
+  class date.DateTime()
+  method (d :: date.DateTime).to_string()
+){
+
+ Prefixed and chained @rhombus(date.Date().to_datetime().to_string()).
 
 }

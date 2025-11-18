@@ -127,17 +127,23 @@
                                                                 0))]
                          [else r]))
    #:render_via_result_annotation (let ([ns (make-base-namespace)])
-                                    (lambda (root-annot rators field field-str)
+                                    (lambda (root rators field field-str)
+                                      ;; Try to get a result from calling `root . rator() . rator() ... . field`.
+                                      ;; The `root . rator ` start might correspond to a
+                                      ;; prefix used in the documentation, or it might start with a prefix used
+                                      ;; locally for importing. Also, even though `root` is in principle a
+                                      ;; namespace, it may be documented only as an annotation, so try that as a
+                                      ;; fallback.
                                       (delayed-element
                                        (lambda (renderer sec ri)
                                          (define default (element tt-style field-str))
-                                         (define (start)
+                                         (define (start root rators)
                                            (cond
-                                             [root-annot
+                                             [root
                                               (define in-name-root-space (make-interned-syntax-introducer 'rhombus/namespace))
                                               (define in-annot-space (make-interned-syntax-introducer 'rhombus/annot))
-                                              (define ns-id (in-name-root-space root-annot 'add))
-                                              (define annot-id (in-annot-space root-annot 'add))
+                                              (define ns-id (in-name-root-space root 'add))
+                                              (define annot-id (in-annot-space root 'add))
                                               (prep-namespace-for-binding ns-id)
                                               (find-via-namespace-id ns-id annot-id rators #f)]
                                              [else
@@ -145,14 +151,28 @@
                                               (define tag (find-racket-tag sec ri rator #f
                                                                            #:unlinked-ok? #t))
                                               (parameterize ([current-namespace ns])
-                                                (find-via-rator-tag tag (cdr rators)))]))
+                                                (find-via-rator-tag tag rator (cdr rators)))]))
 
-                                         (define (find-via-rator-tag rator-tag more-rators)
+                                         (define (find-via-rator-tag rator-tag rator more-rators)
                                            (define spacer-infos (and rator-tag
                                                                      (resolve-get/tentative sec ri (list 'spacer-infos rator-tag))))
                                            (define result-annot (and spacer-infos
                                                                      (hash-ref spacer-infos 'result_annotation #f)))
-                                           (find-via-annot-spacer-binding result-annot more-rators))
+                                           (cond
+                                             [result-annot
+                                              (find-via-annot-spacer-binding result-annot more-rators)]
+                                             [else
+                                              ;; try a class binding => constructor
+                                              (define in-class-space (make-interned-syntax-introducer 'rhombus/class))
+                                              (define class-id (in-class-space rator 'add))
+                                              (cond
+                                                [(find-racket-tag sec ri class-id
+                                                                  #f
+                                                                  #:space 'rhombus/class
+                                                                  #:unlinked-ok? #t)
+                                                 => (lambda (tag)
+                                                      (start rator more-rators))]
+                                                [else default])]))
 
                                          (define (find-via-annot-spacer-binding result-annot more-rators)
                                            (cond
@@ -202,7 +222,7 @@
                                                  => (lambda (tag)
                                                       (cond
                                                         [(pair? more-rators)
-                                                         (find-via-rator-tag tag (cdr more-rators))]
+                                                         (find-via-rator-tag tag next-id (cdr more-rators))]
                                                         [else
                                                          (define e
                                                            (make-id-element (if shift? (syntax-shift-phase-level ns-id #f) ns-id) field-str #f
@@ -214,11 +234,19 @@
                                                                                                     (syntax-e field)))
                                                                                            #f)))
                                                          (element tt-style e)]))]
-                                                [else (try-fallback)])]
+                                                [else
+                                                 ;; in case prefix is local to the import, try just ignoring it
+                                                 (cond
+                                                   [(find-racket-tag sec ri (if shift? (syntax-shift-phase-level next-id #f) next-id)
+                                                                     #f
+                                                                     #:unlinked-ok? #t)
+                                                    => (lambda (tag)
+                                                         (find-via-rator-tag tag next-id (cdr more-rators)))]
+                                                   [else (try-fallback)])])]
                                              [else
                                               (try-fallback)]))
 
-                                         (start))
+                                         (start root rators))
                                        (lambda () field-str)
                                        (lambda () field-str))))
    #:render_whitespace (lambda (n)
