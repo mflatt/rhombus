@@ -262,10 +262,10 @@
     [else
      (define ht (syntax-e name))
      (define t (hash-ref ht 'target #f))
-     (define roots (syntax->list (hash-ref ht 'roots #'#f)))
+     (define root (syntax->list (hash-ref ht 'root #'#f)))
      (define root-syms (syntax->datum (hash-ref ht 'root-syms #'#f)))
-     (if (pair? roots)
-         (hash 'id t 'sym sym 'root_ids roots 'root_syms root-syms)
+     (if root
+         (hash 'id t 'sym sym 'root_id root 'root_syms root-syms)
          t)]))
 
 (define-for-syntax (ret-extract-spacer-infos ret)
