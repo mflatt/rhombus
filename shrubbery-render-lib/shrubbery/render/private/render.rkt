@@ -628,9 +628,10 @@
 (struct via-result (comp        ; `root-sequence`
                     rators)
   #:transparent)
-(struct root-sequence (full       ; source identifiers
-                       importless ; starts with an import-namespace dot composed already
-                       importless-names)  ; like `importless`, but first element is source identifier
+(struct root-sequence (full        ; source identifiers, including ending name
+                       name        ; ending name
+                       start-id    ; dot-composited bound identifier that `(cdr root-names)` and `(last full)` is added to
+                       root-names) ; like `full`, but without ending name and without a leading import namespace (if any)
   #:transparent)
 
 ;; replace `root.field` with a typeset element, including detection of
@@ -826,7 +827,7 @@
                                             #:nominal-module nom-mpi
                                             #:nominal-symbol nom-sym)
                                            sym))
-             (root-sequence (list id stx) (list id stx) (list id stx))]
+             (root-sequence (list id stx) stx id (list id))]
             [else #f])]
          [(result) ; check result of some other identifier as function/method
           (define rator (and (not (hash-ref seen (cdr annot) #f))
@@ -846,15 +847,14 @@
                          (append (via-result-rators comp) (list stx)))]
             [(root-sequence? comp)
              ;; need to resolve a dotted name relative to an annotation
-             (define importless (root-sequence-importless comp))
-             (if (null? (cdr importless))
-                 (via-result #f (list (car importless) stx))
-                 (let* ([rev-importless (reverse importless)]
-                        [importless (reverse (cdr rev-importless))])
-                   (via-result (root-sequence importless ; won't be used
-                                              importless
-                                              (reverse (cdr (reverse (root-sequence-importless-names comp)))))
-                               (list (car rev-importless) stx))))]
+             (if (null? (cdr (root-sequence-root-names comp)))
+                 (via-result #f (list (root-sequence-start-id comp) stx))
+                 (let ([rev-full (cdr (reverse (root-sequence-full comp)))])
+                   (via-result (root-sequence (reverse rev-full)
+                                              (car rev-full)
+                                              (root-sequence-start-id comp)
+                                              (reverse (cdr (reverse (root-sequence-root-names comp)))))                               
+                               (list (root-sequence-name comp) stx))))]
             [(identifier? rator)
              ;; look up result of `rator` by itself via doc info
              (via-result #f (list rator stx))]
@@ -896,14 +896,19 @@
                   [(of)
                    ;; need to keep working backwards
                    (define comp (find-dotted-composition of-stx info seen space-names))
+                   (log-shrubbery-render-info "OF-OF~a"
+                                              (format-log
+                                               'comp comp))
                    (cond
                      [(via-result? comp)
                       (via-result (via-result-comp comp)
                                   (append (via-result-rators comp) (list stx)))]
                      [(root-sequence? comp)
                       (root-sequence (append (root-sequence-full comp) (list stx))
-                                     (append (root-sequence-importless comp) (list stx))
-                                     (append (root-sequence-importless-names comp) (list stx)))]
+                                     stx
+                                     (root-sequence-start-id comp)
+                                     (append (root-sequence-root-names comp)
+                                             (list stx)))]
                      [else #f])]
                   [else
                    (define use-space-names (id-space-name of-stx space-names
@@ -911,16 +916,23 @@
                    (define resolved (resolve-name-ref use-space-names
                                                       of-stx
                                                       (list stx)))
+                   (log-shrubbery-render-info "ID~a"
+                                              (format-log
+                                               'of-stx of-stx
+                                               'stx stx
+                                               'resolved resolved))
                    (cond
                      [resolved
                       (if (null? (hash-ref resolved 'roots null))
                           ;; `of-stx` must be an import namespace
                           (root-sequence (list of-stx stx)
-                                         (list (hash-ref resolved 'target))
+                                         stx
+                                         (hash-ref resolved 'target)
                                          (list stx))
                           ;; simple `of-stx . stx`  path
                           (root-sequence (list of-stx stx)
-                                         (list of-stx stx)
+                                         stx
+                                         of-stx
                                          (list of-stx stx)))]
                      [else #f])])])]
             [else #f])]))]
@@ -930,12 +942,30 @@
   (define root (via-result-comp head))
   (define rev-rators (reverse (via-result-rators head)))
   (define id (car rev-rators))
-  (render-via-result-annotation (if (root-sequence? root)
-                                    (reverse (root-sequence-importless root))
-                                    (and root (list root)))
+  (define root-id
+    (if (root-sequence? root)
+        (root-sequence-start-id root)
+        root))
+  (define ns-id
+    (cond
+      [(not (root-sequence? root)) root-id]
+      [(null? (cdr (root-sequence-root-names root)))
+       root-id]
+      [else
+       (define t (resolve-name-ref '(rhombus/namespace)
+                                   (root-sequence-start-id root)
+                                   (cdr (root-sequence-root-names root))))
+       (log-shrubbery-render-info "VIA-RESULT-T~a"
+                                  (format-log
+                                   'start-id (root-sequence-start-id root)
+                                   'root-names (root-sequence-root-names root)
+                                   't t))
+       (and t (add-space (hash-ref t 'target) 'rhombus/namespace))]))
+  (render-via-result-annotation root-id
+                                (or ns-id root-id)
                                 (if (root-sequence? root)
-                                    (reverse (root-sequence-importless-names root))
-                                    (and root (list root)))
+                                    (root-sequence-root-names root)
+                                    (if root (list root) null))
                                 (reverse (cdr rev-rators))
                                 id
                                 (shrubbery-syntax->string id)))

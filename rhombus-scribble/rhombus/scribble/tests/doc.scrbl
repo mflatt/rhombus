@@ -11,6 +11,7 @@
           println
           String
           ReadableString
+          Port
       rhombus/meta:
         expose:
           expr
@@ -186,5 +187,52 @@ Starting example:
 ){
 
  Prefixed and chained @rhombus(date.Date().to_datetime().to_string()).
+
+}
+
+
+@section{Dotted Paths}
+
+@doc(
+  annot.macro 'Port'
+  annot.macro 'Port.Output':
+    ~method_fallback: Port
+  annot.macro 'Port.Output.String':
+    ~method_fallback: Port.Output
+
+  method (p :: Port).close()
+  method (p :: Port.Output).write_bytes()
+  method (p :: Port.Output).open_string() :: Port.Output.String
+  method (p :: Port.Output.String).get_string() :: String
+){
+
+@rhombusblock(
+  def outp = Port.Output.open_string()
+  outp.write_bytes(#"x")
+  outp.get_string()
+  outp.get_string().length()
+  outp.close()
+)
+
+}
+
+@section{Dotted Paths with Import Prefix}
+
+@doc(
+  annot.macro 'rhombus.Port.Input':
+    ~method_fallback: Port
+  annot.macro 'rhombus.Port.Input.String':
+    ~method_fallback: rhombus.Port.Input
+
+  method (p :: rhombus.Port.Input).read_bytes()
+  method (p :: rhombus.Port.Input).open_string()
+    :: rhombus.Port.Input.String
+){
+
+@rhombusblock(
+  def inp = rhombus.Port.Input.open_string()
+  inp.read_bytes()
+  inp.close()
+)
 
 }
