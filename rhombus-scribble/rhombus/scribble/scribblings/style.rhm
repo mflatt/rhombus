@@ -1,0 +1,42 @@
+#lang rhombus/static/and_meta
+import:
+  meta_label:
+    rhombus open:
+      except:
+        #{#%module-begin}
+    rhombus/meta open:
+      except:
+        #{#%module-begin}
+        space_meta_clause
+    rhombus/scribble/manual open
+  rhombus/scribble/manual open:
+    except:
+      all
+
+export:
+  name_itemlist
+  property_itemlist
+  
+  all
+  html
+  latex
+
+  symkey
+  latex
+
+  ltx
+
+fun name_itemlist(what, item, ...):
+  [@elem{A @tech{style} name is used for @what as follows:},
+   itemlist(item, ...)]
+fun property_itemlist(what, item, ...):
+  [@elem{Each @tech{style property} is used for @what as follows:},
+   itemlist(item, ...)]
+
+fun all(content): content
+fun html(content): [@bold{HTML: }, content]
+fun latex(content): [@bold{Latex/PDF: }, content]
+
+macro 'symkey($e)': '@as_indexed(@rhombus($e))'
+                    
+def ltx: tt
