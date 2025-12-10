@@ -13,7 +13,8 @@
                      "namespace-export-meta.rkt"
                      (submod "namespace-export-meta.rkt" for-namespace)
                      "name-root.rkt"
-                     "srcloc.rkt")
+                     "srcloc.rkt"
+                     "pack.rkt")
          "space.rkt"
          "space-provide.rkt"
          "forwarding-sequence.rkt"
@@ -23,6 +24,7 @@
          "definition.rkt"         
          "sentinel-declaration.rkt"
          "export-check.rkt"
+         "syntax-parameter.rkt"
          (submod "namespace.rkt" for-exports))
 
 (provide (for-space rhombus/space
@@ -70,25 +72,48 @@
     (check-arity #'predicate.expr #'predicate 2 0 #f null #f #f 'function #:always? [always? #f])
     (void))
 
-  (define (call-parse parse form data extras)
-    (define who '|interleaved parse|)
-    (call-with-values
-     (lambda () (parse form data extras))
-     (case-lambda
-       [(result defns new-data)
-        (unless (syntax? result) (raise-binding-failure who "result" result "Syntax"))
-        (unless (syntax? defns) (raise-binding-failure who "result" defns "Syntax"))
-        (unless (syntax? new-data) (raise-binding-failure who "result" new-data "Syntax"))
-        (values #`(quote-syntax (rhombus-namespace-clause #,result) #:local)
-                (unpack-multi defns #f #f)
-                new-data)]
-       [args
-        (apply raise-result-arity-error* who rhombus-realm 3 #f args)])))
+  (define (close-expr who stx-params form)
+    (define g (unpack-group form #f #f))
+    (unless g (raise-annotation-failure who form "Group"))
+    #`(group (parsed #:rhombus/expr
+                     (with-syntax-parameters #,stx-params
+                       (rhombus-expression #,g)))))
 
-  (define (call-combine combine data accum post)
-    (define who '|interleaved combine|)
+  (define (close-defn who stx-params form)
+    (unless (syntax? form) (raise-annotation-failure who form "Syntax"))
+    (with-syntax ([(defn ...) (unpack-multi form #f #f)])
+      #`(group (parsed #:rhombus/defn
+                       ((with-syntax-parameters #,stx-params
+                          (begin
+                            (rhombus-definition defn)
+                            ...)))))))
+    
+  (define (call-parse parse form user-data extras)
+    (define who '|interleaved parse|)
+    (define stx-params (continuation-mark-set-first
+                        #f
+                        syntax-parameters-key))
+    (let* ([extras (hash-set extras
+                             'close_expr
+                             (lambda (form) (close-expr 'close_expr stx-params form)))]
+           [extras (hash-set extras
+                             'close_defn
+                             (lambda (form) (close-defn 'close_defn stx-params form)))])
+      (call-with-values
+       (lambda () (parse form user-data extras))
+       (case-lambda
+         [(defns new-user-data)
+          (unless (syntax? defns) (raise-binding-failure who "result" defns "Syntax"))
+          (unless (syntax? new-user-data) (raise-binding-failure who "result" new-user-data "Syntax"))
+          (values (unpack-multi defns #f #f)
+                  new-user-data)]
+         [args
+          (apply raise-result-arity-error* who rhombus-realm 2 #f args)]))))
+
+  (define (call-complete complete user-data extras)
+    (define who '|interleaved complete|)
     (call-with-values
-     (lambda () (combine data (list->treelist accum) post))
+     (lambda () (complete user-data extras))
      (case-lambda
        [(result)
         (unless (syntax? result) (raise-binding-failure who "result" result "Syntax"))
@@ -103,10 +128,10 @@
     (lambda (stx name-prefix effect-id)
       (syntax-parse stx
         #:datum-literals (group)
-        [(_  (_::block (~alt (~optional (group #:predicate ~! predicate::rhs))
-                             (~optional (group #:parse ~! parse::rhs))
-                             (~optional (group #:data ~! init-data::quoted-rhs))
-                             (~optional (group #:combine ~! combine::rhs))
+        [(_  (_::block (~alt (~optional (group #:is_clause ~! predicate::rhs))
+                             (~optional (group #:parse_clause ~! parse::rhs))
+                             (~optional (group #:init ~! init-data::quoted-rhs))
+                             (~optional (group #:complete ~! complete::rhs))
                              (~optional (group #:name ~! name::dotted-identifier-sequence))
                              (~optional (group (~and defer-tail #:defer_tail) ~!)
                                         #:defaults ([defer-tail #'#f]))
@@ -115,43 +140,44 @@
                        ...
                        . clauses))
          (unless (attribute predicate)
-           (raise-syntax-error #f "expected a `~predicate` clause" stx))
+           (raise-syntax-error #f "expected a `~is_clause` clause" stx))
          (unless (attribute parse)
-           (raise-syntax-error #f "expected a `~parse` clause" stx))
+           (raise-syntax-error #f "expected a `~parse_clause` clause" stx))
          (unless (attribute init-data)
            (raise-syntax-error #f "expected a `~data` clause" stx))
-         (unless (attribute combine)
-           (raise-syntax-error #f "expected a `~combine` clause" stx))
+         (unless (attribute complete)
+           (raise-syntax-error #f "expected a `~complete` clause" stx))
          (define reflect-name (if (attribute name)
                                   (build-dot-symbol #'name #:skip-dots? #f)
                                   name-prefix))
          (define intro (make-syntax-introducer #t))
-         (define data #`([defer-tail no-exports #,reflect-name #,effect-id
-                          clause? parse-clause combine-clause
+         (define data #`[defer-tail no-exports #,reflect-name #,effect-id
+                          clause? parse-clause complete-clause
                           name-prefix
-                          #,(intro #'base-stx) scope-stx]
-                         init-data.form))
+                          #,(intro #'base-stx) scope-stx])
          #`((define-syntax (clause? stx) (predicate.expr stx))
-            (define-syntax (parse-clause form data)
+            (define-syntax (parse-clause form user-data)
               (let ([extras #hasheq()])
-                (call-parse parse.expr form data extras)))
-            (define-syntax (combine-clause results data extras) (call-combine combine.expr results data extras))
+                (call-parse parse.expr form user-data extras)))
+            (define-syntax (complete-clause user-data extras) (call-complete complete.expr user-data extras))
             (rhombus-mixed-nested-forwarding-sequence
              (namespace-finish #,data) rhombus-namespacespace-clause
-             (namespace-body-step #,data . #,(intro #'clauses))))]))))
+             (namespace-body-step [#,data init-data.form] . #,(intro #'clauses))))]))))
 
 (define-syntax namespace-body-step
   (lambda (stx)
     (syntax-parse stx
-      [(_) #'(begin)]
-      [(_ (~and data ([defer-tail no-exports reflect-name effect-id clause? . _] _)) . forms)
+      [(_ (_ user-data))
+       #'(quote-syntax (rhombus-namespace-clause (#:user-data user-data))
+                       #:local)]
+      [(_ (~and data ([defer-tail no-exports reflect-name effect-id clause? . _] user-data)) . forms)
        (define is-clause? (syntax-local-value #'clause?))
        (if (or (not (syntax-e #'defer-tail))
                (ormap (lambda (e) (or (nestable-declaration? e)
                                       (is-clause? e)))
                       (syntax->list #'forms)))
            #'(namespace-body-step/to-clause-or-decl data . forms)
-           #'(quote-syntax (rhombus-namespace-clause (#:post forms))
+           #'(quote-syntax (rhombus-namespace-clause (#:data user-data forms))
                            #:local))])))
 
 (define-syntax namespace-body-step/to-clause-or-decl
@@ -168,47 +194,44 @@
        #:do [(define is-clause? (syntax-local-value #'clause?))]
        #:when (is-clause? #'form)
        (define do-parse-clause (syntax-local-value #'parse-clause))
-       (define-values (result ps new-user-data) (do-parse-clause #'form #'user-data))
-       #`(begin
-           #,result
-           (namespace-body-step (config #,new-user-data)
-                                #,@ps
-                                #,@(if (and (syntax-e #'defer-tail)
-                                            (pair? (syntax-e #'rest)))
-                                       (list #'(group sentinel_declaration))
-                                       null)
-                                . rest))]
+       (define-values (ps new-user-data) (do-parse-clause #'form #'user-data))
+       #`(namespace-body-step (config #,new-user-data)
+                              #,@ps
+                              #,@(if (and (syntax-e #'defer-tail)
+                                          (pair? (syntax-e #'rest)))
+                                     (list #'(group sentinel_declaration))
+                                     null)
+                              . rest)]
       [(_ (~and data ([defer-tail no-exports reflect-name effect-id . _] user-data)) form . rest)
        #`(rhombus-top-step
           #,(if (and (nestable-declaration? #'form)
                      (syntax-e #'defer-tail))
                 #'namespace-body-step
                 #'namespace-body-step/to-clause-or-decl)
-          #f
+          #:no-shortcut
           reflect-name
           effect-id
           (data)
           form . rest)]
-      [(_ _) #'(begin)])))
+      [(_ (_ user-data))
+       #'(quote-syntax (rhombus-namespace-clause (#:user-data user-data))
+                       #:local)])))
 
 (define-syntax namespace-finish
   (lambda (stx)
     (syntax-parse stx
       #:datum-literals (rhombus-namespace-clause)
-      [(_ ([defer-tail no-exports
-             reflect-name effect-id clause? parse-clause combine
-             orig-name-prefix
-             base-stx init-scope-stx]
-           data)
+      [(_ [defer-tail no-exports
+            reflect-name effect-id clause? parse-clause complete
+            orig-name-prefix
+            base-stx init-scope-stx]
           [#:ctx forward-base-ctx forward-ctx]
           exports
-          [(rhombus-namespace-clause result) result-stx-param]
-          ...
-          [(rhombus-namespace-clause (#:post forms)) post-stx-param])
+          [(rhombus-namespace-clause (#:user-data user-data . forms)) post-stx-param])
        (define scope-stx ((make-syntax-delta-introducer #'forward-ctx #'forward-base-ctx) #'init-scope-stx))
        (define expose (make-expose scope-stx #'base-stx))
        (define exs-ht (parse-exports-to-ht #'(combine-out . exports) expose))
-       (define do-combine (syntax-local-value #'combine))
+       (define do-complete (syntax-local-value #'complete))
        (let* ([extras (hasheq)]
               [extras (if (syntax-e #'defer-tail)
                           (hash-set extras 'tail #'(parsed
@@ -263,22 +286,11 @@
                                                                    "request" query)]))))))]
               [extras (hash-set extras 'expose expose)])
          (define defns
-           (do-combine #'data (attribute result) extras))
+           (do-complete #'user-data extras))
          #`(rhombus-nested
             orig-name-prefix
             effect-id
-            . #,(unpack-multi defns #f #f)))]
-      [(_ config
-          binds
-          exports
-          clause
-          ...)
-       #'(namespace-finish config
-                           binds
-                           exports
-                           clause
-                           ...
-                           [(rhombus-namespace-clause (#:post forms)) post-stx-param])])))
+            . #,(unpack-multi defns #f #f)))])))
 
 (define-syntax (namespace-export stx)
   (syntax-parse stx
