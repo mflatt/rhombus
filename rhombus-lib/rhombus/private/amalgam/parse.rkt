@@ -15,7 +15,8 @@
          "expression.rkt"
          "binding.rkt"
          "parens.rkt"
-         "static-info.rkt")
+         "static-info.rkt"
+         "syntax-parameter.rkt")
 
 (provide rhombus-top
          rhombus-module-top
@@ -171,7 +172,7 @@
   (with-syntax-error-respan
     (syntax-parse stx
       #:datum-literals (group parsed)
-      [(_ top decl-ok? prefix effect data) #`(begin)]
+      [(_ top decl-ok? prefix effect (data ...)) #`(begin)]
       [(_ top decl-ok? prefix effect (data ...) (group (parsed #:rhombus/decl decl)) . forms)
        #`(begin decl (top data ... . forms))]
       ;; note that we may perform hierarchical name resolution
