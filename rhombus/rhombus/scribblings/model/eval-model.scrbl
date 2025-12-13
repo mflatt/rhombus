@@ -33,7 +33,12 @@
 @(def p1 = @rhombus(⟨p1⟩, ~var))
 
 @// ------------------------------------------------------------------------
-@title(~tag: "eval-model"){Evaluation Model}
+@title(~tag: "eval-model", ~style: #'toc){Evaluation Model}
+
+@local_table_of_contents()
+
+@// ------------------------------------------------------------------------
+@section(~tag: "expr"){Expression Evaluation}
 
 Rhombus evaluation can be viewed as the simplification of expressions
 to obtain values. For example, just as an elementary-school student
@@ -55,7 +60,7 @@ simpler expressions. In particular, a @deftech{value}, such as the number @rhomb
 is an expression that evaluation simplifies no further.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "cont-model"){Subexpression Evaluation and Continuations}
+@subsection(~tag: "cont-model"){Subexpression Evaluation and Continuations}
 
 Some simplifications require more than one step. For example:
 
@@ -85,7 +90,7 @@ The @deftech{dynamic extent} of an expression is the sequence of
 evaluation steps during which the expression contains the @tech{redex}.
 
 @// ------------------------------------------------------------------------
-@section{Tail Position}
+@subsection{Tail Position}
 
 An expression @rhombus(expr1, ~var) is in @deftech{tail position} with
 respect to an enclosing expression @rhombus(expr2, ~var) if, whenever
@@ -128,7 +133,7 @@ each syntactic form, such as @rhombus(if); subexpressions of a
 form are not in tail position unless documented otherwise.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "values-model"){Multiple Return Values}
+@subsection(~tag: "values-model"){Multiple Return Values}
 
 A Rhombus expression can evaluate to @deftech{multiple values}, to
 provide symmetry with the fact that a function can accept multiple arguments.
@@ -166,7 +171,7 @@ functions (notably @rhombus(call_with_values)) create continuations
 internally that accept a certain number of values.
 
 @// ------------------------------------------------------------------------
-@section{Top-Level Variables}
+@subsection{Top-Level Variables}
 
 Given
 
@@ -256,7 +261,7 @@ existing @tech{top-level variable}:
 )
 
 @// ------------------------------------------------------------------------
-@section{Objects and Imperative Update}
+@subsection{Objects and Imperative Update}
 
 In addition to @rhombus(def) for imperative update of @tech{top-level
  variables}, various functions and operators enable the modification of elements
@@ -377,7 +382,7 @@ program. A program representation created with
 existing objects.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "gc-model"){Garbage Collection}
+@subsection(~tag: "gc-model"){Garbage Collection}
 
 @margin_note{See @secref(~doc: ref_doc, "memory") for functions related to
 garbage collection.}
@@ -420,7 +425,7 @@ always reachable. Values produced by @rhombus(#%literal) remain reachable
 when the @rhombus(#%literal) expression itself is reachable.
 
 @// ------------------------------------------------------------------------
-@section{Function Calls and Local Variables}
+@subsection{Function Calls and Local Variables}
 
 Given
 
@@ -604,7 +609,7 @@ produces a value, it is stored in a fresh location
 that replaces every instance of @rhombus(x) in @rhombus(expr, ~var).
 
 @// ------------------------------------------------------------------------
-@section(~tag: "vars-and-locs"){Variables and Locations}
+@subsection(~tag: "vars-and-locs"){Variables and Locations}
 
 A @deftech{variable} is a placeholder for a @tech{value}, and
 expressions in an initial program refer to variables. A
@@ -774,7 +779,10 @@ form at different times.
 See @rhombus(module) for more information.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "mark-model"){Continuation Frames and Marks}
+@section(~tag: "control-model"){Control Model}
+
+@// ------------------------------------------------------------------------
+@subsection(~tag: "mark-model"){Continuation Frames and Marks}
 
 @margin_note{See @rhombus(Continuation.Marks, ~annot) for continuation-mark forms and functions.}
 
@@ -795,7 +803,7 @@ for a ``stack trace'' to be presented when an exception is thrown, or
 to implement dynamic scope.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "prompt-model"){Prompts, Delimited Continuations, and Barriers}
+@subsection(~tag: "prompt-model"){Prompts, Delimited Continuations, and Barriers}
 
 @margin_note{See @secref(~doc: ref_doc, "Continuations") for continuation and prompt functions.}
 
@@ -829,7 +837,7 @@ mark-gathering purposes. As the name implies, escape continuations are
 used only to abort to the point of capture.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "thread-model"){Threads}
+@subsection(~tag: "thread-model"){Threads}
 
 @margin_note{See @secref(~doc: ref_doc, "concurrency") for thread and synchronization functions.}
 
@@ -888,7 +896,7 @@ new thread sees the same initial value (specified when the thread cell
 is created) as all other threads.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "parameter-model"){Context Parameters}
+@subsection(~tag: "parameter-model"){Context Parameters}
 
 @margin_note{See @secref(~doc: ref_doc, "context-parameters") for context-parameter forms and functions.}
 
@@ -917,7 +925,7 @@ Various operations, such as @rhombus(parameterize), install a parameterization i
 the current continuation's frame.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "exn-model"){Exceptions}
+@subsection(~tag: "exn-model"){Exceptions}
 
 @margin_note{See @secref(~doc: ref_doc, "Exceptions") for exception forms, functions, and types.}
 
@@ -941,7 +949,7 @@ prompt is always present, because the prompt is installed in the
 outermost frame of the continuation for any new thread.
 
 @// ------------------------------------------------------------------------
-@section(~tag: "custodian-model"){Custodians}
+@subsection(~tag: "custodian-model"){Custodians}
 
 @margin_note{See @secref(~doc: ref_doc, "custodian") for custodian functions.}
 

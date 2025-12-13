@@ -16,7 +16,7 @@
 With annotation constructors such as @rhombus(&&, ~annot),
 @rhombus(satisfying, ~annot), and @rhombus(converting, ~annot), most
 annotation macros can be implemented by rewriting into existing
-annotation forms as shown in @secref("bind-macro"). The
+annotation forms as shown in @secref(~doc: guide_doc, "bind-macro"). The
 @rhombus(annot.macro) form also supports a low-level protocol. A
 macro opts into the low-level protocol by returning a result build with
 @rhombus(annot_meta.pack_predicate) or @rhombus(annot_meta.pack_converter).

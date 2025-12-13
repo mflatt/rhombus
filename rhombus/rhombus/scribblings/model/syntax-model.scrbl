@@ -4,7 +4,7 @@
     "prog_step.rhm" open)
 
 @// ------------------------------------------------------------------------
-@title(~tag: "syntax-model"){Syntax Model}
+@title(~tag: "syntax-model", ~style: #'toc){Syntax Model}
 
 The syntax of a Rhombus program is defined by
 
@@ -14,21 +14,26 @@ The syntax of a Rhombus program is defined by
  abstract represented as a @tech{syntax object}. This surface syntax
  is @deftech{shrubbery notation} as defined in @docref(shrub_doc).}
 
- @item{An @deftech{expand} pass processes a @tech{syntax object} to
- produce one that is fully parsed and ready for evaluation. The expansion
- pass is extensible within Rhombus itself, so that the syntax of a
+ @item{An @deftech{parse} pass processes a @tech{syntax object} to
+ produce one that is fully parsed and ready for evaluation. This @deftech{parsing},
+ in turn, interleaves @deftech{expansion} to trigger macro
+ rewrites and @deftech{enforestation} to detect and resolve precedence
+ among operators. The expansion and enforestation processes
+ are extensible within Rhombus itself, so that the syntax of a
  Rhombus program can be customized. @tech{Binding} information in a
- syntax object drives the @tech{expansion} process, and when the
- expansion process encounters a binding form, it extends
+ syntax object drives parsing, and when the
+ expansion step encounters a binding form, it extends
  syntax objects for subexpressions with new binding information.}
 
 )
 
+@local_table_of_contents()
+
 @// ------------------------------------------------------------------------
 @section(~tag: "id-model"){Identifiers, Binding, and Scopes}
 
-An @deftech{identifier} is a source-program entity. Parsing (i.e.,
-expanding) a Rhombus program reveals that some identifiers
+An @deftech{identifier} is a source-program entity. Parsing
+a Rhombus program reveals that some identifiers
 correspond to @tech{variables}, some refer to @tech{syntactic forms}
 (such as @rhombus(fun), which is the @tech{syntactic form} for
 functions), some refer to @tech{transformers} for macro expansion, and
@@ -123,7 +128,7 @@ variable}.
 
 @subsection{Binding Spaces}
 
-A @deftech{binding space}, or just @defterm{space}, represents a
+A @deftech{binding space}, or just @deftech{space}, represents a
 distinct syntactic category that has its own set of bindings. A binding
 space is implemented by a specific @tech{scope} for the space; an
 identifier is bound in a space if its binding includes the space's scope
@@ -150,7 +155,7 @@ run time of the enclosing module (or the run time of top-level
 expressions). Bindings in phase level 0 constitute the
 @deftech{base environment}.  Phase level 1 corresponds to the
 time during which the enclosing module (or top-level expression) is
-expanded; bindings in phase level 1 constitute the
+parsed; bindings in phase level 1 constitute the
 @deftech{transformer environment}.  Phase level -1 corresponds to the
 run time of a different module for which the enclosing module is
 imported for use at phase level 1 (relative to the importing
@@ -174,10 +179,15 @@ relevant.
 
 A @deftech{syntax object} combines a simpler Rhombus value, such as a symbol or list, with
 @tech{lexical information}, @tech{source-location} information, and @tech{syntax properties}.
+The underlying value within a syntax object represents a shrubbery form
+(see @secref(~doc: shrub_doc, "parsed-rep")), so it is symbols for identifiers,
+lists to hold parenthesized group sequences, and so on.
 The @deftech{lexical information} of a syntax object comprises a set of @tech{scope
 sets}, one for each @tech{phase level}. In particular, an @tech{identifier} is represented as a syntax
 object containing a @tech(~doc: ref_doc){symbol}, and its lexical information can be combined with the global
 table of bindings to determine its @tech{binding} (if any) at each phase level.
+Different components within a compound syntax object, such as one that represents
+a block or parenthesized sequence, can have different lexical information.
 
 For example, a @rhombus(List, ~datum) identifier might have
 lexical information that designates it as the @rhombus(List) from
@@ -241,279 +251,12 @@ using @rhombus(Syntax.literal), except that an escaping @rhombus($) is
 recognized within @rhombus(datum, ~var).
 
 @// ------------------------------------------------------------------------
-@section(~tag: "expansion"){Expansion}
+@include_section("parsing.scrbl")
 
-@deftech{Expansion} recursively processes a @tech{syntax object} in a
-particular phase level, starting with @tech{phase level} 0. @tech{Bindings}
-from the @tech{syntax object}'s @tech{lexical information} drive the
-expansion process, and cause new bindings to be introduced for the
-lexical information of sub-expressions. In some cases, a
-sub-expression is expanded in a phase deeper (having a
-bigger phase level number) than the enclosing expression.
+@// ------------------------------------------------------------------------
+@section{Expansion Binding}
 
 @//|--{
-
-@// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-@subsection(~tag: "fully-expanded"){Fully Expanded Programs}
-
-A complete expansion produces a @tech{syntax object} matching the
-following grammar:
-
-@margin-note{Beware that the symbolic names of identifiers in a fully
-expanded program may not match the symbolic names in the grammar. Only
-the binding (according to @racket[free-identifier=?]) matters.}
-
-@racketgrammar*[
-#:literals (#%expression module module* #%plain-module-begin begin #%provide
-            define-values define-syntaxes begin-for-syntax
-            #%require #%declare
-            #%plain-lambda case-lambda if begin begin0 let-values letrec-values
-            set! quote-syntax quote with-continuation-mark
-            #%plain-app #%top #%variable-reference)
-[top-level-form general-top-level-form
-                (#%expression expr)
-                (module id module-path
-                  (#%plain-module-begin
-                   module-level-form ...))
-                (begin top-level-form ...)
-                (begin-for-syntax top-level-form ...)]
-[module-level-form general-top-level-form
-                   (#%provide raw-provide-spec ...)
-                   (begin-for-syntax module-level-form ...)
-                   submodule-form
-                   (#%declare declaration-keyword ...)]
-[submodule-form    (module id module-path
-                     (#%plain-module-begin
-                      module-level-form ...))
-                   (module* id module-path
-                     (#%plain-module-begin
-                      module-level-form ...))
-                   (module* id #f
-                     (#%plain-module-begin
-                      module-level-form ...))]
-[general-top-level-form expr
-                        (define-values (id ...) expr)
-                        (define-syntaxes (id ...) expr)
-                        (#%require raw-require-spec ...)]
-[expr id
-      (#%plain-lambda formals expr ...+)
-      (case-lambda (formals expr ...+) ...)
-      (if expr expr expr)
-      (begin expr ...+)
-      (begin0 expr expr ...)
-      (let-values ([(id ...) expr] ...)
-        expr ...+)
-      (letrec-values ([(id ...) expr] ...)
-        expr ...+)
-      (set! id expr)
-      (@#,racket[quote] datum)
-      (quote-syntax datum)
-      (quote-syntax datum #:local)
-      (with-continuation-mark expr expr expr)
-      (#%plain-app expr ...+)
-      (#%top . id)
-      (#%variable-reference id)
-      (#%variable-reference (#%top . id))
-      (#%variable-reference)]
-[formals (id ...)
-         (id ...+ . id)
-         id]]
-
-A @deftech{fully-expanded} @tech{syntax object} corresponds to a @deftech{parse}
-of a program (i.e., a @deftech{parsed} program), and @tech{lexical
-information} on its @tech{identifiers} indicates the
-@tech{parse}.
-
-More specifically, the typesetting of identifiers in the above grammar
-is significant. For example, the second case for @racket[_expr] is a
-@tech{syntax-object} list whose first element is an @tech{identifier},
-where the @tech{identifier}'s @tech{lexical information} specifies a
-binding to the @racket[#%plain-lambda] of the
-@racketmodname[racket/base] language (i.e., the @tech{identifier} is
-@racket[free-identifier=?] to one whose binding is
-@racket[#%plain-lambda]). In all cases, identifiers above typeset as
-syntactic-form names refer to the bindings defined in
-@secref["syntax"].
-
-In a fully expanded program for a namespace whose @tech{base phase} is
-0, the relevant @tech{phase level} for a binding in the program is
-@math{N} if the binding has @math{N} surrounding
-@racket[begin-for-syntax] and/or @racket[define-syntaxes] forms---not
-counting any @racket[begin-for-syntax] forms that wrap a
-@racket[module] or @racket[module*] form for the body of the @racket[module]
-or @racket[module*], unless a @racket[module*] form has @racket[#f] in place
-of a @racket[_module-path] after the @racket[_id]. The
-@racket[_datum] in a @racket[quote-syntax] form
-preserves its information for all @tech{phase level}s.
-
-A reference to a @tech{local binding} in a fully expanded program has
-a @tech{scope set} that matches its binding identifier exactly.
-Additional @tech{scopes}, if any, are removed. As a result,
-@racket[bound-identifier=?] can be used to correlate local binding
-identifiers with reference identifiers, while
-@racket[free-identifier=?] must be used to relate references to
-@tech{module bindings} or @tech{top-level bindings}.
-
-In addition to the grammar above, @racket[#%expression] can appear in
-a fully local-expanded expression position. For example,
-@racket[#%expression] can appear in the result from
-@racket[local-expand] when the stop list is empty.
-Reference-identifier @tech{scope sets} are reduced in local-expanded
-expressions only when the @racket[local-expand] stop list is empty.
-
-@history[#:changed "6.3" @elem{Added the @racket[#:local] variant of
-                               @racket[quote-syntax]; removed
-                               @racket[letrec-syntaxes+values] from
-                               possibly appearing in a fully
-                               local-expanded form.}]
-
-}--|
-
-@//|--{
-
-@// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-@subsection[#:tag "expand-steps"]{Expansion Steps}
-
-In a recursive expansion, each single step in expanding a @tech{syntax
-object} at a particular @tech{phase level} depends on the immediate shape of
-the @tech{syntax object} being expanded:
-
-@itemize[
-
- @item{If it is an @tech{identifier} (i.e., a syntax-object symbol),
-       then a @tech{binding} is determined by the @tech{identifier}'s
-       @tech{lexical information}. If the @tech{identifier} has a
-       @tech{binding}, that @tech{binding} is used to continue. If the @tech{identifier}
-       is @tech{unbound}, a new @tech{syntax-object} symbol
-       @racket['#%top] is created using the @tech{lexical information}
-       of the @tech{identifier} with @tech{implicit-made-explicit properties};
-       if this @racketidfont{#%top}
-       @tech{identifier} has no @tech{binding}, then parsing fails with an
-       @racket[exn:fail:syntax] exception. Otherwise, the new
-       @tech{identifier} is combined with the original
-       @tech{identifier} in a new @tech{syntax-object} pair (also
-       using the same @tech{lexical information} as the original
-       @tech{identifier}), and the @racketidfont{#%top} @tech{binding}
-       is used to continue.
-
-       @history[#:changed "6.3" @elem{Changed the introduction of
-                                      @racket[#%top] in a top-level context
-                                      to @tech{unbound} identifiers only.}]}
-
- @item{If it is a @tech{syntax-object} pair whose first element is an
-      @tech{identifier}, and if the @tech{identifier} has a
-      @tech{binding} other than as a @tech{top-level variable}, then
-      the @tech{identifier}'s @tech{binding} is used to continue.}
-
- @item{If it is a @tech{syntax-object} pair of any other form, then a
-       new @tech{syntax-object} symbol @racket['#%app] is created
-       using the @tech{lexical information} of the pair with
-       @tech{implicit-made-explicit properties}. If the
-       resulting @racketidfont{#%app} @tech{identifier} has no
-       binding, parsing fails with an @racket[exn:fail:syntax]
-       exception. Otherwise, the new @tech{identifier} is combined
-       with the original pair to form a new @tech{syntax-object} pair
-       (also using the same @tech{lexical information} as the original
-       pair), and the @racketidfont{#%app} @tech{binding} is used to
-       continue.}
-
- @item{If it is any other syntax object, then a new
-       @tech{syntax-object} symbol @racket['#%datum] is created using
-       the @tech{lexical information} of the original @tech{syntax
-       object} with @tech{implicit-made-explicit properties}. If the resulting @racketidfont{#%datum}
-       @tech{identifier} has no @tech{binding}, parsing fails with an
-       @racket[exn:fail:syntax] exception. Otherwise, the new
-       @tech{identifier} is combined with the original @tech{syntax
-       object} in a new @tech{syntax-object} pair (using the same
-       @tech{lexical information} as the original pair), and the
-       @racketidfont{#%datum} @tech{binding} is used to continue.}
-
-]
-
-Thus, the possibilities that do not fail lead to an @tech{identifier}
-with a particular @tech{binding}. This binding refers to one of three
-things:
-
-@itemize[
-
- @item{A @deftech{transformer}, such as introduced by
-       @racket[define-syntax] or @racket[let-syntax]. If the
-       associated value is a procedure of one argument, the procedure
-       is called as a @tech{syntax transformer} (described below), and
-       parsing starts again with the @tech{syntax-object} result. If
-       the @tech{transformer} binding is to any other kind of value,
-       parsing fails with an @racket[exn:fail:syntax] exception. The
-       call to the @tech{syntax transformer} is @racket[parameterize]d
-       to set @racket[current-namespace] to a @tech{namespace} that
-       shares @tech{bindings} and @tech{variables} with the namespace
-       being used to expand, except that its @tech{base phase} is one
-       greater.}
-
- @item{A @tech{variable} @tech{binding}, such as introduced by a
-       module-level @racket[define] or by @racket[let]. In this case,
-       if the form being parsed is just an @tech{identifier}, then it
-       is parsed as a reference to the corresponding
-       @tech{variable}. If the form being parsed is a
-       @tech{syntax-object} pair, then an @racket[#%app] is added to
-       the front of the @tech{syntax-object} pair in the same way as
-       when the first item in the @tech{syntax-object} pair is not an
-       identifier (third case in the previous enumeration), and
-       parsing continues.}
-
- @item{A core @deftech{syntactic form} (often abbreviated as @deftech{core form}), which is parsed as described
-       for each form in @secref["syntax"]. Parsing a core syntactic
-       form typically involves recursive parsing of sub-forms, and may
-       introduce @tech{bindings} that determine the parsing of
-       sub-forms.}
-
-]
-
-When a @racketidfont{#%top}, @racketidfont{#%app}, or
-@racketidfont{#%datum} identifier is added by the expander, it is
-given @deftech{implicit-made-explicit properties}: an
-@racket['implicit-made-explicit] @tech{syntax property} whose value is
-@racket[#t], and a hidden property to indicate that the implicit
-identifier is original in the sense of @racket[syntax-original?] if
-the syntax object that gives the identifier its @tech{lexical information}
-has that property.
-
-@history[#:changed "7.9.0.13" @elem{Added @tech{implicit-made-explicit
-                                    properties}.}]
-
-@;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-@subsection[#:tag "expand-context-model"]{Expansion Context}
-
-Each expansion step occurs in a particular @deftech{context}, and
-transformers and core syntactic forms may expand differently for
-different @tech{contexts}. For example, a @racket[module] form is
-allowed only in a @tech{top-level context} or @tech{module context}, and it fails in other
-contexts. The possible @tech{contexts} are as follows:
-
-@itemize[
-
- @item{@deftech{top-level context} : outside of any module, definition, or
-       expression, except that sub-expressions of a top-level
-       @racket[begin] form are also expanded as top-level forms.}
-
- @item{@deftech{module-begin context} : inside the body of a module, as the
-       only form within the module.}
-
- @item{@deftech{module context} : in the body of a module (inside the
-       module-begin layer).}
-
- @item{@deftech{internal-definition context} : in a nested context that allows
-       both definitions and expressions.}
-
- @item{@deftech{expression context} : in a context where only
-       expressions are allowed.}
-
-]
-
-Different core @tech{syntactic forms} parse sub-forms using different
-@tech{contexts}. For example, a @racket[let] form always parses the
-right-hand expressions of a binding in an @tech{expression context},
-but it starts parsing the body in an @tech{internal-definition
-context}.
 
 @;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 @subsection[#:tag "intro-binding"]{Introducing Bindings}

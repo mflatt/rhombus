@@ -1,10 +1,12 @@
 #lang rhombus/scribble/manual
+@(import:
+    "common.rhm" open)
 
 @title(~style: #'toc, ~tag: "static-info"){Static Information, Binding, and Annotation}
 
-@tech{Static information} is closely related to @tech{annotations}, because annotations
+@tech{Static information} is closely related to @tech(~doc: guide_doc){annotations}, because annotations
 are often the source of static information, either applied to an
-expression or associated with a binding. @tech{Binding}, in turn, is closely
+expression or associated with a binding. @tech(~doc: guide_doc){Binding}, in turn, is closely
 related to static information, because annotations are often applied at
 bindings.
 
