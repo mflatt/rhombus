@@ -9,7 +9,7 @@
 @(def Racket:
     @seclink("top", ~doc: ModulePath'lib("scribblings/guide/guide.scrbl")'){Racket})
 
-@title{Rhombus and Racket Interoperability}
+@title(~category: #'interop){Rhombus and Racket Interoperability}
 
 @Rhombus is implemented on top of @Racket, and the two languages share a
 module system and many data representations. Still, a direct

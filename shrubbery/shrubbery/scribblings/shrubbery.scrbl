@@ -4,7 +4,7 @@
     "grammar-s-exp.rkt":
       expose: shrubbery_s_expression_grammar)
 
-@title{Shrubbery Notation}
+@title(~category: #'core){Shrubbery Notation}
 
 Shrubbery notation is a set of text-level conventions that build toward a
 full programming language, such as

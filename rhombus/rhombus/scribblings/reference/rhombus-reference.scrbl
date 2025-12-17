@@ -2,7 +2,11 @@
 @(import:
     "common.rhm" open)
 
-@title(~style: #'toc){Rhombus Reference}
+@title(
+  ~style: #'toc,
+  ~category: [#'core, 18],
+  ~foreign_category: ["Rhombus", 18]
+){Rhombus Reference}
 
 This document defines the main Rhombus language bindings.
 

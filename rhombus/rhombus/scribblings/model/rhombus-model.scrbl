@@ -2,7 +2,10 @@
 @(import:
     "common.rhm" open)
 
-@title{Rhombus Language Model}
+@title(
+  ~category: [#'core, 16],
+  ~foreign_category: ["Rhombus", 16]
+){Rhombus Language Model}
 
 This document defines evaluation and syntax concepts of the Rhombus
 language.
