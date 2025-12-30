@@ -58,6 +58,12 @@
   | (dc :: draw.DC).font :: Font
   | (dc :: draw.DC).font := (f :: Font)
   property
+  | (dc :: draw.DC).text_foreground :: Color
+  | (dc :: draw.DC).text_foreground := (c :: String || Color)
+  property
+  | (dc :: draw.DC).text_background :: Color
+  | (dc :: draw.DC).text_background := (c :: String || Color)
+  property
   | (dc :: draw.DC).clipping_region :: maybe(Region)
   | (dc :: draw.DC).clipping_region := (rgn :: maybe(Region))
   property
@@ -69,6 +75,9 @@
   property
   | (dc :: draw.DC).smoothing :: Smoothing
   | (dc :: draw.DC).smoothing := (s :: Smoothing)
+  property
+  | (dc :: draw.DC).alpha :: Real.in(0, 1)
+  | (dc :: draw.DC).alpha := (a :: Real.in(0, 1))
 ){
 
  Properties to get or set the drawing context's configuration.
@@ -245,6 +254,37 @@
  with different metrics.
 
 }
+
+@doc(
+  method (dc :: draw.DC).start_alpha(alpha :: Real.in(0, 1)) :: Void
+  method (dc :: draw.DC).end_alpha() :: Void
+  dot (dc :: draw.DC).using_alpha (alpha :: Real.in(0, 1)):
+    $body
+    ...
+){
+
+ The @rhombus(DC.start_alpha) method starts a compositing drawing
+ sequence that is not rendered until @rhombus(DC.end_alpha) is called. At
+ that point, the accumulated sequence is conceptually rendered to a
+ separate context, and then transferred at once with opacity times the
+ current opacity as produced by @rhombus(DC.alpha). The
+ @rhombus(DC.start_alpha) call meanwhile sets the current opacity to
+ @rhombus(1.0), and @rhombus(DC.end_alpha) restores the drawing context’s
+ opacity to the setting before @rhombus(DC.start_alpha).
+
+ This effect is different than setting @rhombus(DC.alpha) (times the
+ current @rhombus(DC.alpha) result) in the case that drawing between
+ @rhombus(DC.start_alpha) and @rhombus(DC.end_alpha) produces overlapping
+ output. In that case, adjusting @rhombus(DC.alpha) would affect the
+ drawing operations separately, while @rhombus(DC.start_alpha) creates an
+ opacity adjustment on the overlapped result, instead.
+
+ The @rhombus(DC.using_alpha) form returns the result of the
+ @rhombus(body) sequence, but adds a @rhombus(DC.start_alpha(alpha)) call
+ before and @rhombus(DC.end_alpha()) call afterward.
+
+}
+
 
 @doc(
   enum draw.DC.Smoothing

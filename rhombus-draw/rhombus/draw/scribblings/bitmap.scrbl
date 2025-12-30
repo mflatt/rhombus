@@ -12,8 +12,12 @@
       size :: SizeLike,
       ~backing_scale: backing_space :: Real.above(0.0) = 1,
       ~has_color: has_color :: Any = #true,
-      ~has_alpha: has_alpha :: Any = #true,
+      ~has_alpha: has_alpha :: Any = #true
     )
+  fun draw.Bitmap.make_platform(
+      size :: SizeLike,
+      ~backing_scale: backing_space :: Real.above(0.0) = 1
+  ) :: Bitmap
 ){
 
 }
@@ -73,21 +77,21 @@
 
 @doc(
   method (bm :: draw.Bitmap).write(
-    dest :: Path,
+    out :: PathString || Port.Output,
     ~kind: kind :: Any.of(#'png, #'jpeg, #'xbm, #'xpm, #'bmp),
     ~quality: quality :: Int.in(0 ..= 100) = 75,
     ~as_unscaled: as_unscaled :: Any = #false,
   ) :: Void
 ){
 
- Writes the bitmap to a file.
+ Writes the bitmap to @rhombus(out).
 
 }
 
 @doc(
-  fun draw.Bitmap.from_file(path :: String || Path) :: Bitmap
+  fun draw.Bitmap.read(in :: PathString || Port.Input) :: Bitmap
 ){
 
-  Reads a bitmap from @rhombus(path).
+  Reads a bitmap from @rhombus(in).
 
 }
