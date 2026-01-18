@@ -96,10 +96,15 @@ fun draw_face(dc :: draw.DC, config :: Map):
       p.scale(-1, 1)
       dc.path(p, ~dx: x+0.5*s, ~dy: y+0.6*s)
 
+    let name = config["name"]
+    let (nw, nh, _, _) = dc.text_extent(name)
+    dc.text(name, ~dx: (w - nw) / 2, ~dy: h - nh)
+
 // ----------------------------------------
 
 def tabs:
   let at_tab = gui.Obs("Happy")
+  let name = gui.Obs("Smiley")
   let shape = gui.Choice(gui.Obs(["Circle", "Square", "Rounded"]),
                          ~selection: "Circle")
   let eyes = gui.Checkbox("Eyes", ~is_checked: #true)
@@ -134,7 +139,8 @@ def tabs:
                             "moustache": stache.at_is_checked,
                             "scale": scale.at_value,
                             "ghosts": ghosts,
-                            "keyed": keyed }
+                            "keyed": keyed,
+                            "name": name }
                             |> gui.Obs.combine(_)
                             |> gui.Canvas(_,
                                           draw_face,
@@ -150,16 +156,31 @@ def tabs:
                                            at_tab.update(fun (v): "Happy"),
                                 ~stretch: [#false, #false])
 
-  gui.TabsPanel(["Happy", "Sad"],
-                ~selection: at_tab,
-                at_tab.map((match _
-                            | "Happy": canvas
-                            | "Sad": gui.HPanel(canvas, happy_button)
-                            )))
+  gui.VPanel(
+    gui.Input(name.value,
+              ~label: "Name",
+              ~action: fun (action, str):
+                         name.value := str),                     
+    gui.TabsPanel(["Happy", "Sad"],
+                  ~selection: at_tab,
+                  at_tab.map((match _
+                              | "Happy": canvas
+                              | "Sad": gui.HPanel(canvas, happy_button)
+                              )))
+  )
 
 // ----------------------------------------
 
-tabs
-  |> gui.Window(_,
-                ~size: [800, 600])
-  |> gui.render(_)
+def win = gui.Window(tabs,
+                     ~menu_bar: gui.MenuBar(
+                                  gui.Menu("File",
+                                           gui.CheckableMenuItem("Enabled"),
+                                           gui.MenuItemSeparator(),
+                                           gui.MenuItem("Close",
+                                                        ~action:
+                                                          fun ():
+                                                            println("close"),
+                                                        ~shortcut: Char"W"))
+                                ),
+                     ~size: [800, 600])
+gui.render(win)
