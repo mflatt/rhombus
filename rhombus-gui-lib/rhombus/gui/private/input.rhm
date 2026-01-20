@@ -30,7 +30,7 @@ class Input(private _at_content :: Obs):
                ~style: style :: ObsOrValue.of(List.of(Input.StyleSymbol)) = [#'single],
                ~font : font :: Font = normal_control_font,
                // ~keymap: ... TODO
-               ~margin: margin :: ObsOrValue.of(View.Margin) = [0, 0],
+               ~margin: margin :: ObsOrValue.of(View.Margin) = [2, 2],
                ~min_size: min_size :: ObsOrValue.of(View.Size) = [#false, #false],
                ~stretch: stretch :: ObsOrValue.of(View.Stretch) = [#true, #false],
                ~is_equal_value: is_equal :: Function.of_arity(2) = fun (a, b): a == b,

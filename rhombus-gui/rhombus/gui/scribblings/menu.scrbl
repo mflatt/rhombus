@@ -40,7 +40,7 @@
     implements MenuChildView
     constructor (
      label :: ObsOrValue.of(View.LabelString),
-     ~action: action :: () -> ~any = values,
+     ~action: action :: Boolean -> ~any = values,
      ~is_enabled: is_enabled :: ObsOrValue.of(Boolean) = #true,
      ~help: help_text :: ObsOrValue.of(maybe(View.LabelString)) = #false,
      ~shortcut: shortcut :: ObsOrValue.of(maybe(MenuItem.Shortcut))
