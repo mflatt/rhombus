@@ -36,6 +36,7 @@
   | #,(@rhombus(annotation, ~interface_clause)) $annotation_decl
   | #,(@rhombus(dot, ~interface_clause)) $dot_decl
   | #,(@rhombus(static_info, ~interface_clause)) $static_info_decl
+  | #,(@rhombus(satisfies, ~interface_clause)) $satisfies_decl
   | #,(@rhombus(primitive_property, ~interface_clause)) $primitive_property_decl
   | $other_interface_clause
 
@@ -283,6 +284,19 @@ or protectedly using
 
 }
 
+@doc(
+  interface_clause.macro 'satisfies $annot'
+  interface_clause.macro 'satisfies:
+                            $annot
+                            ...'
+){
+
+ Analogous to the @rhombus(satisfies, ~class_clause) @tech{class
+  clause}, adds the static-information component of each @rhombus(annot)
+ to the enclosing interface. See the @rhombus(satisfies, ~class_clause)
+ class clause for more information.
+
+}
 
 @doc(
   interface_clause.macro 'primitive_property $expr: $body; ...'

@@ -486,4 +486,8 @@
  information in unpacked form, like the form accepted by
  @rhombus(statinfo_meta.pack).
 
+ See also @rhombus(satisfies, ~class_clause), which adds static
+ information through an annotation instead of through expansion-time
+ operations.
+
 }

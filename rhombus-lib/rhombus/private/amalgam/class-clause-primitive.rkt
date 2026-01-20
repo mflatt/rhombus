@@ -49,7 +49,8 @@
                      private
                      protected
                      final
-                     constructor)
+                     constructor
+                     satisfies)
          (for-spaces (rhombus/class_clause
                       rhombus/interface_clause)
                      internal
@@ -98,6 +99,29 @@
 
 (define-veneer-clause-syntax implements
   (veneer-clause-transformer parse-class-implements))
+
+(define-for-syntax parse-class-satisfies
+  (lambda (stx data)
+    (define annot-gs
+      (syntax-parse stx
+        #:datum-literals (group)
+        [(_ (tag::block annot-g ...))
+         #'(annot-g ...)]
+        [(_ form ...)
+         #'((group form ...))]))
+    (wrap-class-clause #`(#:satisfies . #,annot-gs))))
+
+(define-class-clause-syntax satisfies
+  (class-clause-transformer
+   parse-class-satisfies))
+
+(define-interface-clause-syntax satisfies
+  (interface-clause-transformer
+   parse-class-satisfies))
+
+(define-veneer-clause-syntax satisfies
+  (veneer-clause-transformer
+   parse-class-satisfies))
 
 (define-for-syntax parse-class-internal
   (lambda (stx data)

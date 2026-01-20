@@ -33,6 +33,7 @@ export:
     veneer
     extends
     implements
+    satisfies
     field
     property
     method
@@ -610,6 +611,10 @@ spacer.bridge extends(self, tail, context, esc):
 spacer.bridge implements(self, tail, context, esc):
   ~in: ~class_clause ~interface_clause ~veneer_clause
   '$self $(spacer.adjust_sequence(tail, #'~class, esc))'
+
+spacer.bridge satisfies(self, tail, context, esc):
+  ~in: ~class_clause ~interface_clause ~veneer_clause
+  '$self $(spacer.adjust_sequence(tail, #'~annot, esc))'
 
 spacer.bridge field(self, tail, context, esc):
   ~in: ~class_clause ~pattern_clause

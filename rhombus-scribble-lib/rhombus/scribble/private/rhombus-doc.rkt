@@ -985,6 +985,22 @@
                                  #`(tag kw (blk (tag2 #,@(subst #'id #:as_meta #t) . r)))])))
                   e ...))]))
 
+(define-for-syntax (class-extract-spacer-infos stx space-names)
+  (cons
+   (syntax-parse stx
+     #:datum-literals (group block satisfies)
+     [(group head ... (block _ ...
+                             (group satisfies (~var id (identifier-target 'rhombus/annot)))
+                             . _))
+      (hash 'method_fallback (target->dotted-identifier (attribute id.name) (attribute id.sym)))]
+     [(group head ... (block _ ...
+                             (group satisfies (block
+                                               (group (~var id (identifier-target 'rhombus/annot)))))
+                             . _))
+      (hash 'method_fallback (target->dotted-identifier (attribute id.name) (attribute id.sym)))]
+     [_ #f])
+   (map (lambda (x) #f) (cdr space-names))))
+
 (define-doc class
   class-extract-descs
   (lambda (stx)
@@ -995,6 +1011,7 @@
      stx
      space-name
      (parens-extract-metavariables stx space-name vars)))
+  #:spacer-infos class-extract-spacer-infos
   class-extract-typeset)
 
 (define-doc interface

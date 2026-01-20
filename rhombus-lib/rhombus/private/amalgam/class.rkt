@@ -191,6 +191,7 @@
 
                        static-infos-id
                        static-infos-exprs
+                       satisfies-static-infoss
 
                        instance-static-infos-id
                        instance-static-infos-expr
@@ -269,7 +270,7 @@
          (values
           #`(begin
               #,@(top-level-declare #'(name? . constructor-name-fields))
-              #,@(build-instance-static-infos-defs static-infos-id static-infos-exprs
+              #,@(build-instance-static-infos-defs static-infos-id static-infos-exprs satisfies-static-infoss
                                                    instance-static-infos-id instance-static-infos-expr
                                                    internal-instance-static-infos-id internal-instance-static-infos-expr
                                                    dot-static-infos-id dot-static-infos-expr

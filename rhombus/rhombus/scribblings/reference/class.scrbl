@@ -79,6 +79,7 @@
   | #,(@rhombus(reconstructor_fields, ~class_clause)) $reconstructor_fields_decl
   | #,(@rhombus(dot, ~class_clause)) $dot_decl
   | #,(@rhombus(static_info, ~class_clause)) $static_info_decl
+  | #,(@rhombus(satisfies, ~class_clause)) $satisfies_decl
   | #,(@rhombus(opaque, ~class_clause))
   | #,(@rhombus(prefab, ~class_clause))
   | #,(@rhombus(serializable, ~class_clause)) $serializable_decl
@@ -293,15 +294,18 @@
  @rhombus(.) accesses are resolved for expressions that have the class's
  annotation. The
  @rhombus(static_info, ~class_clause) form (which must be imported
- through @rhombusmodname(rhombus/meta)) adds static information for
+ through @rhombusmodname(rhombus/meta))
+ and @rhombus(satisfies, ~class_clause) form
+ add static information for
  the class's instances. See
  @rhombus(constructor, ~class_clause),
  @rhombus(expression, ~class_clause),
  @rhombus(binding, ~class_clause),
  @rhombus(annotation, ~class_clause),
  @rhombus(reconstructor, ~class_clause),
- @rhombus(dot, ~class_clause), and
- @rhombus(static_info, ~class_clause) for more information on those forms.
+ @rhombus(dot, ~class_clause),
+ @rhombus(static_info, ~class_clause), and
+ @rhombus(satisfies, ~class_clause), for more information on those forms.
 
  When a method function is accessed from a class (as a namespace) via
  @rhombus(.), the function expects an extra by-position argument that
@@ -1163,6 +1167,28 @@
 
 }
 
+@doc(
+  class_clause.macro 'satisfies $annot'
+  class_clause.macro 'satisfies:
+                        $annot
+                        ...'
+){
+
+ Adds static information associated with each @rhombus(annot) for all
+ instances of the class containing the @rhombus(satisfies, ~class_clause)
+ clause. No check will be performed that instances actually satisfy
+ @rhombus(annot).
+
+ A @rhombus(satisfies, ~class_clause) clause can be particularly useful
+ in documentation when the actual implementation of a class uses
+ @rhombus(implements, ~class_clause), but only the annotation and
+ namespace bindings of the interface are exported for public use (to
+ prevent external classes from implementing the interface). In that case,
+ the internal interface can be documented as an annotation, and using
+ @rhombus(satisfies, ~class_clause) correctly promises that all instances
+ of a class will satisfy the interface as annotation.
+
+}
 
 @doc(
   class_clause.macro 'primitive_property $expr: $body; ...'

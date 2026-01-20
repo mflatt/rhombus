@@ -38,6 +38,7 @@
   | #,(@rhombus(expression, ~veneer_clause)) $expression_decl
   | #,(@rhombus(dot, ~veneer_clause)) $dot_decl
   | #,(@rhombus(static_info, ~veneer_clause)) $static_info_decl
+  | #,(@rhombus(satisfies, ~veneer_clause)) $satisfies_decl
   | #,(@rhombus(converter, ~veneer_clause))
   | $other_veneer_clause
 ){
@@ -297,5 +298,19 @@
  When @rhombus(expression, ~veneer_clause) is declared, the
  constructor's result is checked or converted by the veneer's annotation
  in the same way as by the default constructor.
+
+}
+
+@doc(
+  veneer_clause.macro 'satisfies $annot'
+  veneer_clause.macro 'satisfies:
+                         $annot
+                           ...'
+){
+
+ Analogous to the @rhombus(satisfies, ~class_clause) @tech{class
+  clause}, adds the static-information component of each @rhombus(annot)
+ to the enclosing veneer. See the @rhombus(satisfies, ~class_clause)
+ class clause for more information.
 
 }

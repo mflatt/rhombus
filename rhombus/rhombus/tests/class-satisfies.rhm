@@ -1,0 +1,20 @@
+#lang rhombus/static/and_meta
+
+class NotAString():
+  satisfies String
+
+// statically allowed
+check NotAString().length() ~throws values(error.annot_msg(),
+                                           error.annot("ReadableString").msg)
+
+veneer V(this :: Any):
+  method listly():
+    [this]
+
+check V(10).listly() ~is [10]
+
+class Something():
+  satisfies V
+
+check Something().listly() ~is [Something()]
+

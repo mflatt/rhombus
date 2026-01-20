@@ -6,6 +6,7 @@
                      "annot-context.rkt")
          "entry-point.rkt"
          (submod "function.rkt" for-info)
+         (submod "annotation.rkt" for-class)
          "call-result-key.rkt"
          "function-arity-key.rkt"
          "function-arity.rkt"
@@ -43,10 +44,28 @@
     (able-super-statinfo-indirect-id 'call super interfaces))
 
   (define static-infos-exprs (hash-ref options 'static-infoss '()))
-  (define static-infos-id (and (pair? static-infos-exprs)
+  (define satisfies-annot-gs (reverse (hash-ref options 'satisfies '())))
+  (define static-infos-id (and (or (pair? static-infos-exprs)
+                                   (pair? satisfies-annot-gs))
                                (intro (datum->syntax #f (string->symbol
                                                          (format "~a-statinfo" (syntax-e name-id)))))))
 
+  (define satisfies-static-infoss
+    (or
+     (for/fold ([sis #f]) ([annot-g (in-list satisfies-annot-gs)])
+       (define new-sis
+         (syntax-parse annot-g
+           [a::annotation
+            (syntax-parse #'a.parsed
+              [a::annotation-predicate-form
+               #'a.static-infos]
+              [a::annotation-binding-form
+               #'a.static-infos])]))
+       (if sis
+           (static-infos-and sis new-sis)
+           new-sis))
+     #'()))
+  
   (define (get-instance-static-infos-expr internal?)
     (define most-static-infos
       (for/list ([intf (in-list (if super (cons super interfaces) interfaces))]
@@ -169,6 +188,7 @@
           ;; has only statinfos provided by `static_info` class clause:
           static-infos-id       ; defined by `build-instance-static-infos-defs`
           static-infos-exprs    ; RHS of definition
+          satisfies-static-infoss
 
           ;; has `static_info` class clause merged with supers:
           instance-static-infos-id   ; defined by `build-instance-static-infos-defs`
@@ -194,7 +214,7 @@
           all-static-infos
           internal-all-static-infos))
 
-(define-for-syntax (build-instance-static-infos-defs static-infos-id static-infos-exprs
+(define-for-syntax (build-instance-static-infos-defs static-infos-id static-infos-exprs satisfies-static-infoss
                                                      instance-static-infos-id instance-static-infos-expr
                                                      internal-instance-static-infos-id internal-instance-static-infos-expr
                                                      dot-static-infos-id dot-static-infos-expr
@@ -217,7 +237,8 @@
             ;; evaluate `expr` eagerly, since it's provided by the user
             (let ([si (#,(quote-syntax quasisyntax)
                        (#,@(for/list ([expr (in-list (reverse static-infos-exprs))])
-                             #`(#,(quote-syntax unsyntax-splicing) (pack-static-infos 'static_info #,expr)))))])
+                             #`(#,(quote-syntax unsyntax-splicing) (pack-static-infos 'static_info #,expr)))
+                        #,@satisfies-static-infoss))])
               (static-info (lambda () (syntax->list si))))))
        null)
    (make-lazy instance-static-infos-id instance-static-infos-expr)

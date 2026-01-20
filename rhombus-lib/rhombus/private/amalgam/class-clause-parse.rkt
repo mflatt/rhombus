@@ -88,6 +88,9 @@
                    options)]
               [(#:static-infos expr)
                (hash-set options 'static-infoss (cons #'expr (hash-ref options 'static-infoss '())))]
+              [(#:satisfies annot-g ...)
+               (hash-set options 'satisfies (append (reverse (syntax->list #'(annot-g ...)))
+                                                    (hash-ref options 'satisfies '())))]
               [_ options]))
           (loop (cdr clauses) new-options)]))]))
 
@@ -178,6 +181,9 @@
                  (raise-syntax-error #f "multiple converter clauses" orig-stx clause))
                (hash-set options 'converter? #t)]
               [(#:static-infos expr)
+               ;; covered in annotation pass
+               options]
+              [(#:satisfies expr)
                ;; covered in annotation pass
                options]
               [(#:field mutability id rhs-id ann-seq default form-id mode)

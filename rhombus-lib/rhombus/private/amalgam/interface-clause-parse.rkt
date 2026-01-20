@@ -38,6 +38,9 @@
                (hash-set options 'has-non-final-method? #t)]
               [(#:static-infos expr)
                (hash-set options 'static-infoss (cons #'expr (hash-ref options 'static-infoss '())))]
+              [(#:satisfies annot-g ...)
+               (hash-set options 'satisfies (append (reverse (syntax->list #'(annot-g ...)))
+                                                    (hash-ref options 'satisfies '())))]
               [_ options]))
           (loop (cdr clauses) new-options)]))]))
 
@@ -80,7 +83,10 @@
                (hash-set options 'dots (cons (cons #'name (extract-rhs #'block))
                                              (hash-ref options 'dots null)))]
               [(#:static-infos expr)
-               (hash-set options 'static-infoss (cons #'expr (hash-ref options 'static-infoss '())))]
+               ;; covered in annotation pass
+               options]
+              [(#:satisfies id ...)
+               options]
               [(#:primitive-property prop-id val-id)
                (hash-set options 'primitive-properties
                          (cons (cons #'prop-id #'val-id)
