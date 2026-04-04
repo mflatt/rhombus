@@ -1,0 +1,56 @@
+#lang rhombus/and_meta
+import:
+  "type.rhm" open
+
+meta:
+  namespace ffi2:
+    import:
+      lib("ffi2/main.rkt") open
+    export fun pack(id :~ Identifier):
+      id.replace_scopes('here')
+
+decl.macro 'bounce:
+              $id
+              ...':
+  '«export type.macro '$id': ffi2.pack('$id')
+    ...»'
+
+bounce:
+  void_t
+  int8_t
+  uint8_t
+  byte_t
+  int16_t
+  uint16_t
+  int32_t
+  uint32_t
+  int64_t
+  uint64_t
+  short_t
+  ushort_t
+  int_t
+  uint_t
+  long_t
+  ulong_t
+  intptr_t
+  uintptr_t
+  size_t
+  ssize_t
+  float_t
+  double_t
+  intwchar_t
+  wchar_t
+  bool_t
+  boolint
+  ptr_t
+  racket_t
+  string_t
+  bytes_t
+  bytes_ptr_t
+  path_t
+
+/*
+  ptr_t/gcable
+  void_t*
+  void_t* /gcable
+*/

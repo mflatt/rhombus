@@ -1,0 +1,14 @@
+#lang rhombus/and_meta
+
+export:
+  type
+  meta:
+    type_meta
+
+space.enforest type:
+  space_path rhombus/ffi/type
+  macro_definer macro
+  meta_namespace type_meta:
+    parse_syntax_class Parsed
+    parsed_packer pack
+    parsed_unpacker unpack

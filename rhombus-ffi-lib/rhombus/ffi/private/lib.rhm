@@ -1,0 +1,42 @@
+#lang rhombus/and_meta
+import:
+  lib("ffi2/main.rkt") as ffi2
+  rhombus/custodian open
+  "pointer.rhm" open
+
+class Lib(name :~ maybe(PathString), private _handle):
+  internal _Lib
+  constructor ~error
+  property handle: _handle
+
+  method find(
+    name :: String || Bytes || Symbol,
+    ~fail: fail :: maybe(() -> maybe(Pointer)) = #false
+  ) :: maybe(Pointer):
+    ffi2.#{ffi2-lib-ref}(_handle, name, ~fail: fail)
+
+  export:
+    from_handle
+  fun from_handle(name :: maybe(PathString), handle) :~ Lib:
+    _Lib(name, handle)
+
+fun load(
+  path :: PathString || False,
+  version :: String || List.of(String || False) || False = #false,
+  ~fail: fail :: maybe(() -> maybe(Lib)) = #false,
+  ~as_global: as_global :: Any.to_boolean = #false,
+  ~custodian: cust :: maybe(Custodian) = #false
+) :: maybe(Lib):
+  ~name: ffi.lib
+  let handle:
+    ffi2.#{ffi2-lib}(path,
+                     if version is_a List
+                     | PairList(& version)
+                     | version,
+                     ~fail: fail,
+                     ~#{global?}: as_global,
+                     ~custodian: cust?.handle)
+  handle && Lib.from_handle(path, handle)
+  
+load("libintl.9.dylib").find("textdomain")
+

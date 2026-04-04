@@ -1,0 +1,11 @@
+#lang rhombus/static/and_meta
+import:
+  lib("ffi2/main.rkt") as ffi2
+
+export:
+  Pointer
+
+annot.macro 'Pointer':
+  annot_meta.pack_predicate('ffi2.#{ptr_t?}',
+                            '()')
+  
