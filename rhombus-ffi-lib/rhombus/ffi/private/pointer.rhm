@@ -1,11 +1,84 @@
 #lang rhombus/static/and_meta
 import:
-  lib("ffi2/main.rkt") as ffi2
+  "type.rhm" open
+  "base_type.rhm".int_t
+  lib("ffi2/main.rkt") as ffi2:
+    expose:
+      #{ffi2-malloc} as ffi2_malloc
+      #{ffi2-ref} as ffi2_ref
+      #{ffi2-set!} as ffi2_set
+      array
 
 export:
   Pointer
+  only_space type:
+    *
+  malloc
+  new
+  mem
 
 annot.macro 'Pointer':
   annot_meta.pack_predicate('ffi2.#{ptr_t?}',
                             '()')
-  
+
+type.macro '$t *':
+  ~all_stx: stx
+  let t = type_meta.unpack_singleton(t)
+  type_meta.pack_pointer('[array, $t, #{*}]', t)
+    .relocate_span([stx])
+
+meta:
+  syntax_class MallocMode:
+    kind: ~sequence
+  | '~gcable':
+      field mode = '~gcable'
+  | '~immobile':
+      field mode = '~#{gcable-immobile}'
+  | '~traced':
+      field mode = '~#{gcable-traced}'
+  | '~traced_immobile':
+      field mode = '~#{gcable-traced-immobile}'
+  | '~manual':
+      field mode = '~manual'
+  | '$(kw :: Keyword)':
+      syntax_meta.error("invalid allocation mode", kw)
+      field mode = #false
+  | '':
+      field mode = '~gcable'
+
+expr.macro 'malloc $(m :: MallocMode) ($(e :: expr_meta.Parsed))':
+  expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e])
+
+expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) $()':
+  let tail = '$t.tail ...'
+  match tail
+  | '[$(e :: Sequence) ~bytes] $tail ...':
+      values(expr_meta.pack_s_exp(['ffi2_malloc',
+                                   type_meta.s_exp(type_meta.unpack_singleton(t)),
+                                   expr_meta.pack_expr(e),
+                                   '~bytes']),
+             '$tail ...')
+  | '[$(e :: Group)] $tail ...':
+      values(expr_meta.pack_s_exp(['ffi2_malloc',
+                                   type_meta.s_exp(type_meta.unpack_singleton(t)),
+                                   expr_meta.pack_expr(e)]),
+             '$tail ...')
+  | ~else:
+      values(expr_meta.pack_s_exp(['ffi2_malloc', type_meta.unpack_singleton(t)]),
+             tail)
+
+expr.macro
+| 'mem *($(t :: type_meta.Parsed)) $lhs ... := $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    ~all_stx: stx
+    let '$(lhs :: expr_meta.Parsed)' = '$lhs ...'        
+    values(expr_meta.pack_s_exp(['ffi2_set',
+                                 lhs,
+                                 type_meta.s_exp(type_meta.unpack_pointer_element(stx, t)),
+                                 e]),
+           '$e.tail ...')
+| 'mem *($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    ~all_stx: stx
+    values(expr_meta.pack_s_exp(['ffi2_ref',
+                                 e,
+                                 type_meta.s_exp(type_meta.unpack_pointer_element(stx, t))]),
+           '$e.tail ...')

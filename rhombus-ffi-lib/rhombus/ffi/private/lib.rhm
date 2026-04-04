@@ -4,6 +4,10 @@ import:
   rhombus/custodian open
   "pointer.rhm" open
 
+export:
+  Lib
+  load
+
 class Lib(name :~ maybe(PathString), private _handle):
   internal _Lib
   constructor ~error
@@ -37,6 +41,3 @@ fun load(
                      ~#{global?}: as_global,
                      ~custodian: cust?.handle)
   handle && Lib.from_handle(path, handle)
-  
-load("libintl.9.dylib").find("textdomain")
-

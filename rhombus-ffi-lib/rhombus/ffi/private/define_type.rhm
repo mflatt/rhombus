@@ -1,0 +1,25 @@
+#lang rhombus/static/and_meta
+import:
+  "type.rhm" open
+  lib("ffi2/main.rkt"):
+    expose:
+      #{define-ffi2-type}
+
+export:
+  rename ty as type
+
+namespace ty:
+  export:
+    rename type_def as def
+
+defn.macro
+| 'type_def $(name :: Name) = $(t :: type_meta.Parsed)':
+    let ty_name = Syntax.make_temp_id(name)
+    '«
+       $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
+                               ty_name,
+                               type_meta.s_exp(type_meta.unpack_singleton(t))]))
+       type.macro '$name':
+         ~all_stx: stx
+         type_meta.pack_singleton('$ty_name').relocate(stx)
+     »'

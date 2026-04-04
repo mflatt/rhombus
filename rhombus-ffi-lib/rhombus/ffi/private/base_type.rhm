@@ -1,18 +1,21 @@
-#lang rhombus/and_meta
+#lang rhombus/static/and_meta
 import:
   "type.rhm" open
 
 meta:
   namespace ffi2:
     import:
-      lib("ffi2/main.rkt") open
+      meta -1:
+        lib("ffi2/main.rkt") open
     export fun pack(id :~ Identifier):
       id.replace_scopes('here')
 
 decl.macro 'bounce:
               $id
               ...':
-  '«export type.macro '$id': ffi2.pack('$id')
+  '«export type.macro '$id':
+      ~all_stx: stx
+      type_meta.pack_singleton(ffi2.pack('$id')).relocate(stx)
     ...»'
 
 bounce:

@@ -1,14 +1,83 @@
-#lang rhombus/and_meta
+#lang rhombus/static/and_meta
+import:
+  lib("ffi2/main.rkt") as ffi2:
+    expose:
+      #{ffi2-sizeof} as ffi2_sizeof
+      #{ffi2-cast} as ffi2_cast
 
 export:
   type
   meta:
     type_meta
 
+module api:
+  export:
+    sizeof
+    cast
+
 space.enforest type:
   space_path rhombus/ffi/type
   macro_definer macro
   meta_namespace type_meta:
     parse_syntax_class Parsed
+    parse_prefix_more_syntax_class AfterPrefixParsed
+    parse_infix_more_syntax_class AfterInfixParsed
     parsed_packer pack
     parsed_unpacker unpack
+    export:
+      pack_singleton
+      pack_tuple
+      pack_pointer
+      unpack_singleton
+      unpack_tuple
+      unpack_pointer_element
+      unpack_tuple_varargs
+      s_exp
+      
+    fun pack_singleton(t :: Term) :~ Syntax:
+      pack('[($t), #false, #false]')
+    fun pack_tuple(t :: Term, varargs) :~ Syntax:
+      pack('[$t, ~tuple, $varargs]')
+    fun pack_pointer(t :: Term, elem_t :: Term) :~ Syntax:
+      pack('[($t), ~pointer, $elem_t]')
+
+    fun unpack_singleton(t :: Syntax):
+      match unpack(t)
+      | '[($(e :: Term)), $_, $_]': e
+      | ~else: syntax_meta.error("expected a single type", t)
+    fun unpack_tuple(t :: Syntax):
+      match unpack(t)
+      | '[$t, $_, $_]': t
+    fun unpack_pointer_element(stx, t :: Syntax):
+      match unpack(t)
+      | '[$_, ~pointer, $elem_t]': elem_t
+      | ~else: syntax_meta.error("expected a dereferenceable pointer type", stx, t)
+
+    fun unpack_tuple_varargs(t :: Syntax):
+      match unpack(t)
+      | '[$t, ~tuple, $varargs]': varargs.unwrap()
+      | ~else: #false
+
+    fun s_exp(t :: Syntax):
+      match t
+      | '[$t, ...]': [s_exp(t), ...]
+      | ~else: t
+
+expr.macro 'sizeof($(t :: type_meta.Parsed))':
+  expr_meta.pack_s_exp(['ffi2_sizeof', type_meta.s_exp(type_meta.unpack_singleton(t))])
+
+expr.macro
+| 'cast ~from ($(from_t :: type_meta.Parsed)) ~to ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    values(expr_meta.pack_s_exp(['ffi2_cast',
+                                 e,
+                                 '~from',
+                                 type_meta.s_exp(type_meta.unpack_singleton(from_t)),
+                                 '~to',
+                                 type_meta.s_exp(type_meta.unpack_singleton(t))]),
+           '$e.tail ...')
+| 'cast $('~to' || '') ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    values(expr_meta.pack_s_exp(['ffi2_cast',
+                                 e,
+                                 '~to',
+                                 type_meta.s_exp(type_meta.unpack_singleton(t))]),
+           '$e.tail ...')
