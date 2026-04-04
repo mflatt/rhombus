@@ -65,7 +65,7 @@ space.enforest type:
     fun unpack_pointer_element(stx, t :: Syntax):
       match unpack(t)
       | '[$_, ~pointer, $elem_t]': elem_t
-      | ~else: syntax_meta.error("expected a dereferenceable pointer type", stx, t)
+      | ~else: stx && syntax_meta.error("expected a dereferenceable pointer type", stx, t)
     fun unpack_opaque_pointer(t :: Syntax):
       match unpack(t)
       | '[$_, ~opaque, $ptr_t]': ptr_t

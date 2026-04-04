@@ -13,6 +13,7 @@ export:
   Pointer
   only_space type:
     *
+    #%index
   malloc
   new
   mem
@@ -31,6 +32,15 @@ type.macro '$t *':
   | let t = type_meta.unpack_singleton(t)
     type_meta.pack_pointer('[array, $t, #{*}]', t)
       .relocate_span([stx])
+
+type.macro '$t #%index [$(n :: Int)]':
+  ~all_stx: stx
+  ~stronger_than: ~other
+  unless n.unwrap() >= 0
+  | syntax_meta.error("size must be nonnegative", stx, n)
+  let t = type_meta.unpack_singleton(t)
+  type_meta.pack_pointer('[array, $t, $n]', t)
+    .relocate_span([stx])
 
 meta:
   syntax_class MallocMode:
@@ -74,27 +84,10 @@ expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) 
     | ~else:
         e
   fun default():
-    match tail
-    | '[$(e :: Sequence) ~bytes] $tail ...':
-        values(maybe_annoted(
-                 expr_meta.pack_s_exp(['ffi2_malloc',
-                                       type_meta.s_exp(type_meta.unpack_singleton(t)),
-                                       expr_meta.pack_expr(e),
-                                       '~bytes'])
-               ),
-               '$tail ...')
-    | '[$(e :: Group)] $tail ...':
-        values(maybe_annoted(
-                 expr_meta.pack_s_exp(['ffi2_malloc',
-                                       type_meta.s_exp(type_meta.unpack_singleton(t)),
-                                       expr_meta.pack_expr(e)])
-               ),
-               '$tail ...')
-    | ~else:
-        values(maybe_annoted(
-                 expr_meta.pack_s_exp(['ffi2_malloc', type_meta.unpack_singleton(t)])
-               ),
-               tail)
+    values(maybe_annoted(
+             expr_meta.pack_s_exp(['ffi2_malloc', type_meta.s_exp(type_meta.unpack_singleton(t))])
+           ),
+           tail)
   match tail
   | '($(field_id :: Identifier): $e) $tail ...' when type_meta.unpack_union_proc_ids(t):
       match type_meta.unpack_union_proc_ids(t)
