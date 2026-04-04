@@ -5,6 +5,7 @@ import:
   "ffi/private/base_type.rhm"
   "ffi/private/pointer.rhm"
   "ffi/private/arrow.rhm"
+  "ffi/private/struct.rhm"
   "ffi/private/define_type.rhm"
 
 export:
@@ -13,4 +14,5 @@ export:
   all_from(.base_type)
   all_from(.pointer)
   all_from(.arrow)
+  all_from(.struct)
   all_from(.define_type)

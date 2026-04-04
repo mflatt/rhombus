@@ -4,21 +4,47 @@ import:
   lib("ffi2/main.rkt"):
     expose:
       #{define-ffi2-type}
+      ptr_t
+      array
 
 export:
-  rename ty as type
+  rename type_def as type
 
-namespace ty:
-  export:
-    rename type_def as def
+meta:
+  syntax_class MaybeExtends:
+    fields: t
+  | ': ~extends: $(t :: type_meta.Parsed)'
+  | ': ~extends $(t :: type_meta.Parsed)'
+  | '':
+      field t = #false
 
 defn.macro
-| 'type_def $(name :: Name) = $(t :: type_meta.Parsed)':
-    let ty_name = Syntax.make_temp_id(name)
+| 'type_def $(name :: IdentifierName) $(ext :: MaybeExtends)':
+    let '$_ ... $name_tail' = '$name'
+    let ty_name = Syntax.make_id(name_tail +& "*")
     '«
        $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                ty_name,
-                               type_meta.s_exp(type_meta.unpack_singleton(t))]))
+                               if ext.t
+                               | type_meta.unpack_opaque_pointer(ext.t)
+                                   || ['array',
+                                       type_meta.s_exp(type_meta.unpack_singleton(ext.t)),
+                                       '#{*}']
+                               | 'ptr_t',
+                               & (if ext.t
+                                  | []
+                                  | ['~tag', '$ty_name'])]))
+       type.macro '$name':
+         ~all_stx: stx
+         type_meta.pack_opaque('$ty_name').relocate(stx)
+     »'
+| 'type_def $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
+    let ty_name = Syntax.make_id(to_string(name))
+    '«
+       $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
+                               ty_name,
+                               type_meta.s_exp(type_meta.unpack_singleton(t)),
+                               '~tag', '#false']))
        type.macro '$name':
          ~all_stx: stx
          type_meta.pack_singleton('$ty_name').relocate(stx)

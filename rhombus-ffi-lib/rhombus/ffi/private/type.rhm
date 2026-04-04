@@ -28,10 +28,16 @@ space.enforest type:
       pack_singleton
       pack_tuple
       pack_pointer
+      pack_opaque
+      pack_struct
+      pack_union
       unpack_singleton
       unpack_tuple
       unpack_pointer_element
+      unpack_opaque_pointer
       unpack_tuple_varargs
+      unpack_struct_proc_ids
+      unpack_union_proc_ids
       s_exp
       
     fun pack_singleton(t :: Term) :~ Syntax:
@@ -40,22 +46,42 @@ space.enforest type:
       pack('[$t, ~tuple, $varargs]')
     fun pack_pointer(t :: Term, elem_t :: Term) :~ Syntax:
       pack('[($t), ~pointer, $elem_t]')
+    fun pack_opaque(ptr_t :: Term) :~ Syntax:
+      pack('[#false, ~opaque, $ptr_t]')
+    fun pack_struct(t :: Term, proc_ids) :~ Syntax:
+      pack('[($t), ~struct, $proc_ids]')
+    fun pack_union(t :: Term, proc_ids) :~ Syntax:
+      pack('[($t), ~union, $proc_ids]')
 
     fun unpack_singleton(t :: Syntax):
       match unpack(t)
       | '[($(e :: Term)), $_, $_]': e
+      | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
       | ~else: syntax_meta.error("expected a single type", t)
     fun unpack_tuple(t :: Syntax):
       match unpack(t)
+      | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
       | '[$t, $_, $_]': t
     fun unpack_pointer_element(stx, t :: Syntax):
       match unpack(t)
       | '[$_, ~pointer, $elem_t]': elem_t
       | ~else: syntax_meta.error("expected a dereferenceable pointer type", stx, t)
+    fun unpack_opaque_pointer(t :: Syntax):
+      match unpack(t)
+      | '[$_, ~opaque, $ptr_t]': ptr_t
+      | ~else: #false
 
     fun unpack_tuple_varargs(t :: Syntax):
       match unpack(t)
       | '[$t, ~tuple, $varargs]': varargs.unwrap()
+      | ~else: #false
+    fun unpack_struct_proc_ids(t :: Syntax):
+      match unpack(t)
+      | '[$_, ~struct, $proc_ids]': proc_ids
+      | ~else: #false
+    fun unpack_union_proc_ids(t :: Syntax):
+      match unpack(t)
+      | '[$_, ~union, $proc_ids]': proc_ids
       | ~else: #false
 
     fun s_exp(t :: Syntax):

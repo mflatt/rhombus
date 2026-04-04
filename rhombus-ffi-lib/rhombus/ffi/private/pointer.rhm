@@ -23,9 +23,14 @@ annot.macro 'Pointer':
 
 type.macro '$t *':
   ~all_stx: stx
-  let t = type_meta.unpack_singleton(t)
-  type_meta.pack_pointer('[array, $t, #{*}]', t)
-    .relocate_span([stx])
+  ~stronger_than: ~other
+  let opque_ptr_t = type_meta.unpack_opaque_pointer(t)
+  if opque_ptr_t
+  | type_meta.pack_singleton(opque_ptr_t)
+      .relocate_span([stx])
+  | let t = type_meta.unpack_singleton(t)
+    type_meta.pack_pointer('[array, $t, #{*}]', t)
+      .relocate_span([stx])
 
 meta:
   syntax_class MallocMode:
@@ -40,32 +45,75 @@ meta:
       field mode = '~#{gcable-traced-immobile}'
   | '~manual':
       field mode = '~manual'
-  | '$(kw :: Keyword)':
-      syntax_meta.error("invalid allocation mode", kw)
-      field mode = #false
   | '':
       field mode = '~gcable'
 
-expr.macro 'malloc $(m :: MallocMode) ($(e :: expr_meta.Parsed))':
-  expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e])
+expr.macro
+| 'malloc $(m :: MallocMode) ~as ($(t :: type_meta.Parsed)) ($(e :: expr_meta.Parsed))':
+    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e,
+                          '~as', type_meta.s_exp(type_meta.unpack_singleton(t))])
+| 'malloc $(m :: MallocMode) ~as $t ... ($e ...)':
+    let '$(t :: type_meta.Parsed)' = '$t ...'
+    let '$(e :: expr_meta.Parsed)' = '$e ...'
+    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e,
+                          '~as', type_meta.s_exp(type_meta.unpack_singleton(t))])
+| 'malloc $(m :: MallocMode) ($(e :: expr_meta.Parsed))':
+    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e])
 
 expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) $()':
+  ~all_stx: stx
   let tail = '$t.tail ...'
+  fun annoted(e, ann):
+    let ann = syntax_meta.dynamic_name(ann, ~space: annot_meta.space, ~as_static: #true)
+    '$e :~ $ann'
+  fun maybe_annoted(e):
+    match (type_meta.unpack_union_proc_ids(t)
+             || type_meta.unpack_struct_proc_ids(t))
+    | '[$_, $_, $ann, $_, ...]':
+        annoted(e, ann)
+    | ~else:
+        e
+  fun default():
+    match tail
+    | '[$(e :: Sequence) ~bytes] $tail ...':
+        values(maybe_annoted(
+                 expr_meta.pack_s_exp(['ffi2_malloc',
+                                       type_meta.s_exp(type_meta.unpack_singleton(t)),
+                                       expr_meta.pack_expr(e),
+                                       '~bytes'])
+               ),
+               '$tail ...')
+    | '[$(e :: Group)] $tail ...':
+        values(maybe_annoted(
+                 expr_meta.pack_s_exp(['ffi2_malloc',
+                                       type_meta.s_exp(type_meta.unpack_singleton(t)),
+                                       expr_meta.pack_expr(e)])
+               ),
+               '$tail ...')
+    | ~else:
+        values(maybe_annoted(
+                 expr_meta.pack_s_exp(['ffi2_malloc', type_meta.unpack_singleton(t)])
+               ),
+               tail)
   match tail
-  | '[$(e :: Sequence) ~bytes] $tail ...':
-      values(expr_meta.pack_s_exp(['ffi2_malloc',
-                                   type_meta.s_exp(type_meta.unpack_singleton(t)),
-                                   expr_meta.pack_expr(e),
-                                   '~bytes']),
-             '$tail ...')
-  | '[$(e :: Group)] $tail ...':
-      values(expr_meta.pack_s_exp(['ffi2_malloc',
-                                   type_meta.s_exp(type_meta.unpack_singleton(t)),
-                                   expr_meta.pack_expr(e)]),
-             '$tail ...')
+  | '($(field_id :: Identifier): $e) $tail ...' when type_meta.unpack_union_proc_ids(t):
+      match type_meta.unpack_union_proc_ids(t)
+      | '[$ctr, [$field, ...], $ann, $_, ...]':
+          unless field_id.unwrap() in [field.unwrap(), ...]
+          | syntax_meta.error("unrecognized field for union", stx, field_id)
+          annoted(expr_meta.pack_s_exp([ctr, field_id, m.mode, expr_meta.pack_expr('block: $e')]),
+                  ann)
+  | '($e, ...) $tail ...':
+      match type_meta.unpack_struct_proc_ids(t)
+      | '[$ctr, [$field, ...], $ann, $_, ...]':
+          unless [field, ...].length() == [e, ...].length()
+          | syntax_meta.error("incorrect constructor argument count", stx)
+          annoted(expr_meta.pack_s_exp([ctr, m.mode, expr_meta.pack_expr(e), ...]),
+                  ann)
+      | ~else:
+          default()
   | ~else:
-      values(expr_meta.pack_s_exp(['ffi2_malloc', type_meta.unpack_singleton(t)]),
-             tail)
+      default()
 
 expr.macro
 | 'mem *($(t :: type_meta.Parsed)) $lhs ... := $(e :: expr_meta.AfterInfixParsed('*')) $()':
