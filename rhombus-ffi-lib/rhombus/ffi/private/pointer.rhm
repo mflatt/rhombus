@@ -2,21 +2,33 @@
 import:
   "type.rhm" open
   "base_type.rhm".int_t
+  "check.rhm" open
+  lib("ffi2/main.rkt")!unsafe as ffi2_unsafe:
+    expose:
+      #{unsafe-ffi2-malloc} as ffi2_malloc
+      #{unsafe-ffi2-ref} as #{|mem reference|}
+      #{unsafe-ffi2-set!} as #{|mem assignment|}
+      #{unsafe-ffi2-cast} as ffi2_cast
   lib("ffi2/main.rkt") as ffi2:
     expose:
-      #{ffi2-malloc} as ffi2_malloc
-      #{ffi2-ref} as ffi2_ref
-      #{ffi2-set!} as ffi2_set
-      array
+      array as ffi2_array
+      gcable as ffi2_gcable
+      #{void_t*} as ffi2_void_t_star
 
 export:
   Pointer
   only_space type:
     *
+    /
     #%index
   malloc
   new
   mem
+  cast
+
+statinfo.key elem_type:
+  ~and: fun (a, b): a && b
+  ~or: fun (a, b): a || b
 
 annot.macro 'Pointer':
   annot_meta.pack_predicate('ffi2.#{ptr_t?}',
@@ -26,12 +38,30 @@ type.macro '$t *':
   ~all_stx: stx
   ~stronger_than: ~other
   let opque_ptr_t = type_meta.unpack_opaque_pointer(t)
-  if opque_ptr_t
-  | type_meta.pack_type(opque_ptr_t)
-      .relocate_span([stx])
-  | let t = type_meta.unpack_type(t)
-    type_meta.pack_pointer('[array, $t, #{*}]', t)
-      .relocate_span([stx])
+  cond 
+  | opque_ptr_t:
+      type_meta.pack_type(opque_ptr_t)
+        .relocate_span([stx])
+  | type_meta.unpack_void(t):
+      type_meta.pack_type('ffi2_void_t_star')
+  | ~else:
+      let t = type_meta.unpack_type(t)
+      type_meta.pack_pointer('[ffi2_array, $t, #{*}]', t)
+        .relocate_span([stx])
+
+type.macro '$t /gcable':
+  ~all_stx: stx
+  ~stronger_than: ~other
+  cond
+  | type_meta.unpack_generic_pointer(t):
+      type_meta.pack_type('[ffi2_gcable, $(type_meta.unpack_type(t))]')
+  | ~else:  
+      let elem_t = type_meta.unpack_pointer_element(#false, t)
+      unless elem_t
+      | syntax_meta.error("expected a pointer type", stx, t)
+      let t = type_meta.unpack_type(t)
+      type_meta.pack_pointer('[ffi2_gcable, $t]', elem_t)
+        .relocate_span([stx])
 
 type.macro '$t #%index [$(n :: Int)]':
   ~all_stx: stx
@@ -39,7 +69,7 @@ type.macro '$t #%index [$(n :: Int)]':
   unless n.unwrap() >= 0
   | syntax_meta.error("size must be nonnegative", stx, n)
   let t = type_meta.unpack_type(t)
-  type_meta.pack_pointer('[array, $t, $n]', t)
+  type_meta.pack_pointer('[ffi2_array, $t, $n]', t)
     .relocate_span([stx])
 
 meta:
@@ -60,15 +90,18 @@ meta:
 
 expr.macro
 | 'malloc $(m :: MallocMode) ~as ($(t :: type_meta.Parsed)) ($(e :: expr_meta.Parsed))':
-    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e,
+    ~op_stx: self
+    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, wrap_size_check(self, e),
                           '~as', type_meta.s_exp(type_meta.unpack_type(t))])
 | 'malloc $(m :: MallocMode) ~as $t ... ($e ...)':
+    ~op_stx: self
     let '$(t :: type_meta.Parsed)' = '$t ...'
     let '$(e :: expr_meta.Parsed)' = '$e ...'
-    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e,
+    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, wrap_size_check(self, e),
                           '~as', type_meta.s_exp(type_meta.unpack_type(t))])
 | 'malloc $(m :: MallocMode) ($(e :: expr_meta.Parsed))':
-    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e])
+    ~op_stx: self
+    expr_meta.pack_s_exp(['ffi2_malloc', m.mode, wrap_size_check(self, e)])
 
 expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) $()':
   ~all_stx: stx
@@ -77,6 +110,8 @@ expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) 
     let ann = syntax_meta.dynamic_name(ann, ~space: annot_meta.space, ~as_static: #true)
     '$e :~ $ann'
   fun maybe_annoted(e):
+    let e: statinfo_meta.wrap(e, '((elem_type, $(type_meta.unpack_pointer_element(#false, t)
+                                                   || type_meta.unpack_type(t))))')
     match (type_meta.unpack_union_proc_ids(t)
              || type_meta.unpack_struct_proc_ids(t))
     | '[$_, $_, $ann, $_, ...]':
@@ -110,16 +145,77 @@ expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) 
 
 expr.macro
 | 'mem *($(t :: type_meta.Parsed)) $lhs ... := $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    ~op_stx: self
     ~all_stx: stx
     let '$(lhs :: expr_meta.Parsed)' = '$lhs ...'        
-    values(expr_meta.pack_s_exp(['ffi2_set',
-                                 lhs,
+    values(expr_meta.pack_s_exp(['#{|mem assignment|}',
+                                 wrap_ptr_t_check(self, lhs),
                                  type_meta.s_exp(type_meta.unpack_pointer_element(stx, t)),
                                  e]),
            '$e.tail ...')
 | 'mem *($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    ~op_stx: self
     ~all_stx: stx
-    values(expr_meta.pack_s_exp(['ffi2_ref',
-                                 e,
+    values(expr_meta.pack_s_exp(['#{|mem reference|}',
+                                 wrap_ptr_t_check(self, e),
                                  type_meta.s_exp(type_meta.unpack_pointer_element(stx, t))]),
            '$e.tail ...')
+| 'mem $e_seq ... [$i_seq ...] := $rhs ...':
+    ~op_stx: self
+    ~all_stx: stx
+    let '$(e :: expr_meta.Parsed)' = '$e_seq ...'
+    let '$(e_i :: expr_meta.Parsed)' = '$i_seq ...'
+    let '$(e_r :: expr_meta.Parsed)' = '$rhs ...'
+    let u_t = statinfo_meta.lookup(e, 'elem_type')
+    unless u_t
+    | syntax_meta.error("pointer element type is not statically known", stx, e)
+    values(expr_meta.pack_s_exp(['#{|mem assignment|}',
+                                 wrap_ptr_t_check(self, e),
+                                 type_meta.s_exp(u_t),
+                                 wrap_index_check(self, e_i),
+                                 e_r]),
+           '')
+| 'mem $e_seq ... [$i_seq ...] $tl ...':
+    ~op_stx: self
+    ~all_stx: stx
+    let '$(e :: expr_meta.Parsed)' = '$e_seq ...'
+    let '$(e_i :: expr_meta.Parsed)' = '$i_seq ...'
+    let u_t = statinfo_meta.lookup(e, 'elem_type')
+    unless u_t
+    | syntax_meta.error("pointer element type is not statically known", stx, e)
+    values(expr_meta.pack_s_exp(['#{|mem reference|}',
+                                 wrap_ptr_t_check(self, e),
+                                 type_meta.s_exp(u_t),
+                                 wrap_index_check(self, e_i)]),
+           '$tl ...')
+
+expr.macro
+| 'cast ~from ($(from_t :: type_meta.Parsed)) ~to ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    values(add_elem_type(
+             expr_meta.pack_s_exp(['ffi2_cast',
+                                   e,
+                                   '~from',
+                                   type_meta.s_exp(type_meta.unpack_type(from_t)),
+                                   '~to',
+                                   type_meta.s_exp(type_meta.unpack_type(t))]),
+             t
+           ),
+           '$e.tail ...')
+| 'cast $('~to' || '') ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    ~op_stx: self
+    values(add_elem_type(
+             expr_meta.pack_s_exp(['ffi2_cast',
+                                   wrap_ptr_t_check(self, e),
+                                   '~to',
+                                   type_meta.s_exp(type_meta.unpack_type(t))]),
+             t
+           ),
+           '$e.tail ...')
+
+meta fun add_elem_type(e, t):
+  let elem = t && type_meta.unpack_pointer_element(#false, t)
+  if elem
+  | statinfo_meta.wrap(e, '((elem_type, $elem))')
+  | e
+                                                   
+

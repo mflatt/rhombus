@@ -3,7 +3,6 @@ import:
   lib("ffi2/main.rkt") as ffi2:
     expose:
       #{ffi2-sizeof} as ffi2_sizeof
-      #{ffi2-cast} as ffi2_cast
 
 export:
   type
@@ -13,7 +12,6 @@ export:
 module api:
   export:
     sizeof
-    cast
 
 space.enforest type:
   space_path rhombus/ffi/type
@@ -39,6 +37,8 @@ space.enforest type:
       unpack_arrow
       unpack_struct_proc_ids
       unpack_union_proc_ids
+      unpack_void
+      unpack_generic_pointer
       s_exp
       
     fun pack_type(t :: Term) :~ Syntax:
@@ -87,6 +87,15 @@ space.enforest type:
       match unpack(t)
       | '[$_, ~union, $proc_ids]': proc_ids
       | ~else: #false
+    fun unpack_void(t :: Syntax):
+      match unpack(t)
+      | '[(void_t), $_, $_]': #true
+      | ~else: #false
+    fun unpack_generic_pointer(t :: Syntax):
+      match unpack(t)
+      | '[(ptr_t), $_, $_]': #true
+      | '[([ffi_gcable, ptr_t]), $_, $_]': #true
+      | ~else: #false
 
     fun s_exp(t :: Syntax):
       match t
@@ -95,19 +104,3 @@ space.enforest type:
 
 expr.macro 'sizeof($(t :: type_meta.Parsed))':
   expr_meta.pack_s_exp(['ffi2_sizeof', type_meta.s_exp(type_meta.unpack_type(t))])
-
-expr.macro
-| 'cast ~from ($(from_t :: type_meta.Parsed)) ~to ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
-    values(expr_meta.pack_s_exp(['ffi2_cast',
-                                 e,
-                                 '~from',
-                                 type_meta.s_exp(type_meta.unpack_type(from_t)),
-                                 '~to',
-                                 type_meta.s_exp(type_meta.unpack_type(t))]),
-           '$e.tail ...')
-| 'cast $('~to' || '') ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
-    values(expr_meta.pack_s_exp(['ffi2_cast',
-                                 e,
-                                 '~to',
-                                 type_meta.s_exp(type_meta.unpack_type(t))]),
-           '$e.tail ...')

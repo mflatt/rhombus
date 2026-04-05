@@ -8,6 +8,31 @@ import:
 
 export:
   c_fun
+  c_definer
+
+meta fun build_c_fun(stx,
+                     id, t,
+                     lib_block,
+                     c_id,
+                     fail_block,
+                     wrap_block):
+  unless type_meta.unpack_arrow(t)
+  | syntax_meta.error("not an arrow type", stx, t)
+  unless lib_block
+  | syntax_meta.error("missing a `~lib` clause", stx)
+  defn_meta.pack_s_exp(['def_ffi2_proc',
+                        id,
+                        type_meta.s_exp(type_meta.unpack_type(t)),
+                        '~#{c-id}',
+                        c_id || id,
+                        '~lib',
+                        expr_meta.pack_expr('Lib.handle(block: $lib_block)'),
+                        & (if fail_block
+                           | ['~fail', expr_meta.pack_expr('block: $fail_block')]
+                           | []),
+                        & (if wrap_block
+                           | ['~wrap', expr_meta.pack_expr('block: $wrap_block')]
+                           | [])])
 
 defn.macro
 | 'c_fun $(id :: Identifier) $(t :: type_meta.Parsed):
@@ -17,20 +42,59 @@ defn.macro
        | '~fail: $fail_block'
        | '~wrap: $wrap_block')':
     ~all_stx: stx
-    unless type_meta.unpack_arrow(t)
-    | syntax_meta.error("not an arrow type", stx, t)
-    unless lib_block
-    | syntax_meta.error("missing a `~lib` clause", stx)
-    defn_meta.pack_s_exp(['def_ffi2_proc',
-                          id,
-                          type_meta.s_exp(type_meta.unpack_type(t)),
-                          '~#{c-id}',
-                          c_id || id,
-                          '~lib',
-                          expr_meta.pack_expr('Lib.handle(block: $lib_block)'),
-                          & (if fail_block
-                             | ['~fail', expr_meta.pack_expr('block: $fail_block')]
-                             | []),
-                          & (if wrap_block
-                             | ['~wrap', expr_meta.pack_expr('block: $wrap_block')]
-                             | [])])
+    build_c_fun(stx,
+                id, t,
+                lib_block,
+                c_id,
+                fail_block,
+                wrap_block)
+| 'c_fun $(id :: Identifier) $(t :: type_meta.Parsed)':
+    ~all_stx: stx
+    build_c_fun(stx,
+                id, t,
+                #false,
+                #false,
+                #false,
+                #false)
+
+  
+defn.macro 'c_definer $(name :: Name):
+               $(group_option_sequence
+                 | '~lib: $lib_block'
+                 | '~c_id: $(c_id :: Identifier)'
+                 | '~default_fail: $default_fail_block'
+                 | '~default_wrap: $default_wrap_block')':
+  ~all_stx: stx
+  unless lib_block
+  | syntax_meta.error("missing a `~lib` clause", stx)
+  '«
+     def lib: $lib_block
+     $(if default_fail_block
+       | 'def default_fail: $default_fail_block'
+       | '')
+     $(if default_wrap_block
+       | 'def default_wrap: $default_wrap_block'
+       | '')
+     defn.macro
+     | '$name $('$')(id :: Identifier) $('$')t_seq $('...'):
+          $('$')(group_option_sequence
+                 | '~c_id: $('$')(c_id :: Identifier)'
+                 | '~fail: $('$')fail_block'
+                 | '~wrap: $('$')wrap_block')':
+         ~all_stx: stx
+         let '$('$')(t :: type_meta.Parsed)' = '$('$')t_seq $('...')'
+         build_c_fun(stx,
+                     id, t,
+                     'lib',
+                     c_id,
+                     fail_block || $(default_fail_block && '«'default_fail'»'),
+                     wrap_block || $(default_wrap_block && '«'default_wrap'»'))
+     | '$name $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
+         ~all_stx: stx
+         build_c_fun(stx,
+                     id, t,
+                     'lib',
+                     #false,
+                     $(default_fail_block && '«'default_fail'»'),
+                     $(default_wrap_block && '«'default_wrap'»'))
+   »'        

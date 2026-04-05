@@ -8,6 +8,7 @@ import:
   "ffi/private/struct.rhm"
   "ffi/private/define_type.rhm"
   "ffi/private/fun.rhm"
+  "ffi/private/string.rhm"
 
 export:
   all_from(.lib)
@@ -18,3 +19,4 @@ export:
   all_from(.struct)
   all_from(.define_type)
   all_from(.fun)
+  all_from(.string)
