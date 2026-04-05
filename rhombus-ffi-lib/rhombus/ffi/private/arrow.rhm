@@ -16,6 +16,8 @@ type.macro
     let '($(var_t :: type_meta.Parsed), ...)' = '($var_t, ...)'
     let tup = '($(type_meta.unpack_singleton(t)), ..., $(type_meta.unpack_singleton(var_t)), ...)'
     type_meta.pack_tuple(tup, [t, ...].length()).relocate(args)
+| '#%parens ($(t :: type_meta.Parsed))':
+    t
 | '#%parens $(args && '($(t :: type_meta.Parsed), ...)')':
     let tup = '($(type_meta.unpack_singleton(t)), ...)'
     type_meta.pack_tuple(tup, #false).relocate(args)
@@ -31,6 +33,6 @@ type.macro '$arg_ts -> $(result_t :: type_meta.AfterInfixParsed('->')) $()':
     | let args = [arg_t, ...]
       args.take(varargs) ++ ['~varargs'] ++ args.drop(varargs)
   let result_t = type_meta.unpack_singleton(result_t)
-  values(type_meta.pack_singleton('[arrow, $arg_t, ..., $result_t]')
+  values(type_meta.pack_arrow('[arrow, $arg_t, ..., $result_t]')
            .relocate_span([stx]),
          tail)

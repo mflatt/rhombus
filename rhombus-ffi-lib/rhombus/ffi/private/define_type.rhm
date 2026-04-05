@@ -8,7 +8,7 @@ import:
       array
 
 export:
-  rename type_def as type
+  rename type_def as c_type
 
 meta:
   syntax_class MaybeExtends:
@@ -40,6 +40,9 @@ defn.macro
      »'
 | 'type_def $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
     let ty_name = Syntax.make_id(to_string(name))
+    let pack = (if type_meta.unpack_arrow(t)
+                | 'pack_arrow'
+                | 'pack_singleton')
     '«
        $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                ty_name,
@@ -47,5 +50,5 @@ defn.macro
                                '~tag', '#false']))
        type.macro '$name':
          ~all_stx: stx
-         type_meta.pack_singleton('$ty_name').relocate(stx)
+         type_meta . $pack('$ty_name').relocate(stx)
      »'

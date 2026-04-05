@@ -27,6 +27,7 @@ space.enforest type:
     export:
       pack_singleton
       pack_tuple
+      pack_arrow
       pack_pointer
       pack_opaque
       pack_struct
@@ -35,6 +36,7 @@ space.enforest type:
       unpack_tuple
       unpack_pointer_element
       unpack_opaque_pointer
+      unpack_arrow
       unpack_tuple_varargs
       unpack_struct_proc_ids
       unpack_union_proc_ids
@@ -46,6 +48,8 @@ space.enforest type:
       pack('[$t, ~tuple, $varargs]')
     fun pack_pointer(t :: Term, elem_t :: Term) :~ Syntax:
       pack('[($t), ~pointer, $elem_t]')
+    fun pack_arrow(t :: Term) :~ Syntax:
+      pack('[($t), ~arrow, #false]')
     fun pack_opaque(ptr_t :: Term) :~ Syntax:
       pack('[#false, ~opaque, $ptr_t]')
     fun pack_struct(t :: Term, proc_ids) :~ Syntax:
@@ -55,7 +59,7 @@ space.enforest type:
 
     fun unpack_singleton(t :: Syntax):
       match unpack(t)
-      | '[($(e :: Term)), $_, $_]': e
+      | '[($(e :: Term)), $_, $_]': e.relocate(t)
       | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
       | ~else: syntax_meta.error("expected a single type", t)
     fun unpack_tuple(t :: Syntax):
@@ -75,6 +79,11 @@ space.enforest type:
       match unpack(t)
       | '[$t, ~tuple, $varargs]': varargs.unwrap()
       | ~else: #false
+    fun unpack_arrow(t :: Syntax):
+      recur loop(t = unpack(t)):
+        match t
+        | '[$_, ~arrow, $_]': #true
+        | ~else: #false
     fun unpack_struct_proc_ids(t :: Syntax):
       match unpack(t)
       | '[$_, ~struct, $proc_ids]': proc_ids
@@ -86,7 +95,7 @@ space.enforest type:
 
     fun s_exp(t :: Syntax):
       match t
-      | '[$t, ...]': [s_exp(t), ...]
+      | '[$sub_t, ...]': [s_exp(sub_t), ...]
       | ~else: t
 
 expr.macro 'sizeof($(t :: type_meta.Parsed))':
