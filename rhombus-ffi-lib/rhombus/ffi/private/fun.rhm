@@ -11,14 +11,15 @@ export:
   c_definer
 
 meta fun build_c_fun(stx,
+                     who,
                      id, t,
-                     lib_block,
+                     lib_handle, lib_block,
                      c_id,
                      fail_block,
                      wrap_block):
   unless type_meta.unpack_arrow(t)
   | syntax_meta.error("not an arrow type", stx, t)
-  unless lib_block
+  unless lib_handle || lib_block
   | syntax_meta.error("missing a `~lib` clause", stx)
   defn_meta.pack_s_exp(['def_ffi2_proc',
                         id,
@@ -26,12 +27,12 @@ meta fun build_c_fun(stx,
                         '~#{c-id}',
                         c_id || id,
                         '~lib',
-                        expr_meta.pack_expr('Lib.handle(block: $lib_block)'),
+                        lib_handle || expr_meta.pack_expr('extract_lib(#' $who, block: $lib_block)'),
                         & (if fail_block
-                           | ['~fail', expr_meta.pack_expr('block: $fail_block')]
+                           | ['~fail', expr_meta.pack_expr('check_fail_proc(#' $who, block: $fail_block)')]
                            | []),
                         & (if wrap_block
-                           | ['~wrap', expr_meta.pack_expr('block: $wrap_block')]
+                           | ['~wrap', expr_meta.pack_expr('check_wrap_proc(#' $who, block: $wrap_block)')]
                            | [])])
 
 defn.macro
@@ -41,18 +42,22 @@ defn.macro
        | '~c_id: $(c_id :: Identifier)'
        | '~fail: $fail_block'
        | '~wrap: $wrap_block')':
+    ~op_stx: self
     ~all_stx: stx
     build_c_fun(stx,
+                self,
                 id, t,
-                lib_block,
+                #false, lib_block,
                 c_id,
                 fail_block,
                 wrap_block)
 | 'c_fun $(id :: Identifier) $(t :: type_meta.Parsed)':
+    ~op_stx: self
     ~all_stx: stx
     build_c_fun(stx,
+                self,
                 id, t,
-                #false,
+                #false, #false,
                 #false,
                 #false,
                 #false)
@@ -64,16 +69,17 @@ defn.macro 'c_definer $(name :: Name):
                  | '~c_id: $(c_id :: Identifier)'
                  | '~default_fail: $default_fail_block'
                  | '~default_wrap: $default_wrap_block')':
+  ~op_stx: self
   ~all_stx: stx
   unless lib_block
   | syntax_meta.error("missing a `~lib` clause", stx)
   '«
-     def lib: $lib_block
+     def lib = extract_lib(#' $self, block: $lib_block)
      $(if default_fail_block
-       | 'def default_fail: $default_fail_block'
+       | 'def default_fail = check_fail_proc(#' $self, block: $default_fail_block)'
        | '')
      $(if default_wrap_block
-       | 'def default_wrap: $default_wrap_block'
+       | 'def default_wrap = check_wrap_proc(#' $self, $default_wrap_block)'
        | '')
      defn.macro
      | '$name $('$')(id :: Identifier) $('$')t_seq $('...'):
@@ -81,20 +87,48 @@ defn.macro 'c_definer $(name :: Name):
                  | '~c_id: $('$')(c_id :: Identifier)'
                  | '~fail: $('$')fail_block'
                  | '~wrap: $('$')wrap_block')':
+         ~op_stx: self
          ~all_stx: stx
          let '$('$')(t :: type_meta.Parsed)' = '$('$')t_seq $('...')'
          build_c_fun(stx,
+                     self,
                      id, t,
-                     'lib',
+                     'lib', #false,
                      c_id,
                      fail_block || $(default_fail_block && '«'default_fail'»'),
                      wrap_block || $(default_wrap_block && '«'default_wrap'»'))
      | '$name $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
+         ~op_stx: self
          ~all_stx: stx
          build_c_fun(stx,
+                     self,
                      id, t,
-                     'lib',
+                     'lib', #false,
                      #false,
                      $(default_fail_block && '«'default_fail'»'),
                      $(default_wrap_block && '«'default_wrap'»'))
    »'        
+
+fun extract_lib(who, lib):
+  match lib
+  | lib :: Lib: lib.handle
+  | ~else: error(~who: who,
+                 error.annot_msg(),
+                 error.annot("Lib"),
+                 error.val(lib))
+
+fun check_fail_proc(who, proc):
+  match proc
+  | _ :: Function.of_arity(1): proc
+  | ~else: error(~who: who,
+                 error.annot_msg("value for failure handler"),
+                 error.annot("Function.of_arity(1)"),
+                 error.val(proc))
+
+fun check_wrap_proc(who, proc):
+  match proc
+  | _ :: Function.of_arity(1): proc
+  | ~else: error(~who: who,
+                 error.annot_msg("value for wrapping function"),
+                 error.annot("Function.of_arity(1)"),
+                 error.val(proc))

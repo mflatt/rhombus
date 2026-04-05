@@ -19,6 +19,8 @@ export:
   Pointer
   only_space type:
     *
+    **
+    ***
     /
     #%index
   malloc
@@ -48,6 +50,16 @@ type.macro '$t *':
       let t = type_meta.unpack_type(t)
       type_meta.pack_pointer('[ffi2_array, $t, #{*}]', t)
         .relocate_span([stx])
+
+type.macro '$t **':
+  ~all_stx: stx
+  ~stronger_than: ~other
+  '$t * *'
+
+type.macro '$t ***':
+  ~all_stx: stx
+  ~stronger_than: ~other
+  '$t * * *'
 
 type.macro '$t /gcable':
   ~all_stx: stx
