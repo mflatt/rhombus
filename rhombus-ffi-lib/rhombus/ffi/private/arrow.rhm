@@ -10,29 +10,99 @@ export:
     #%parens
     ->
 
-type.macro
-| '#%parens $(args && '($t, ..., ~varargs, $var_t, ...)')':
-    let '($(t :: type_meta.Parsed), ...)' = '($t, ...)'
-    let '($(var_t :: type_meta.Parsed), ...)' = '($var_t, ...)'
-    let tup = '($(type_meta.unpack_singleton(t)), ..., $(type_meta.unpack_singleton(var_t)), ...)'
-    type_meta.pack_tuple(tup, [t, ...].length()).relocate(args)
-| '#%parens ($(t :: type_meta.Parsed))':
-    t
-| '#%parens $(args && '($(t :: type_meta.Parsed), ...)')':
-    let tup = '($(type_meta.unpack_singleton(t)), ...)'
-    type_meta.pack_tuple(tup, #false).relocate(args)
+meta syntax_class Argument:
+  kind: ~group
+  fields: t arg
+| '$(id :: Identifier): $t_seq ... = $e_seq ...':
+    def '$(t :: type_meta.Parsed)' = '$t_seq ...'
+    def e = expr_meta.pack_expr('$e_seq ...')
+    field arg: '[$id, #{:}, $(type_meta.unpack_type(t)), #{=}, $e]'
+    field t = #false
+| '$(id :: Identifier): $(i_t :: type_meta.Parsed)':
+    field arg: '[$id, #{:}, $(type_meta.unpack_type(i_t))]'
+    field t = #false
+| '$t_seq ... = $e_seq ...':
+    def '$(t :: type_meta.Parsed)' = '$t_seq ...'
+    def e = expr_meta.pack_expr('$e_seq ...')
+    field arg: '[$(type_meta.unpack_type(t)), #{=}, $e]'
+    field t = #false
+| '$(t :: type_meta.Parsed)':
+    field arg: type_meta.unpack_type(t)
 
-type.macro '$arg_ts -> $(result_t :: type_meta.AfterInfixParsed('->')) $()':
+type.macro
+| '#%parens $(args && '($(a :: Argument))')':
+    if a.t
+    | a.t
+    | type_meta.pack_tuple('[$a.arg]').relocate(args)
+| '#%parens $(args && '($arg, ..., ~varargs, $var_arg, ...)')':
+    let '($(a :: Argument), ...)' = '($arg, ...)'
+    let '($(var_a :: Argument), ...)' = '($var_arg, ...)'
+    let tup = '($a.arg, ..., ~varargs, $var_a.arg, ...)'
+    type_meta.pack_tuple(tup).relocate(args)
+| '#%parens $(args && '($arg, ...)')':
+    let '($(a :: Argument), ...)' = '($arg, ...)'
+    let tup = '($a.arg, ...)'
+    type_meta.pack_tuple(tup).relocate(args)
+
+meta syntax_class Errno:
+  kind: ~group
+  fields: errno
+| '~errno':
+    field errno = ['~errno']
+| '$(id :: Identifier): ~errno':
+    field errno = ['[$id, #{:}, ~errno]']
+| '~get_last_error':
+    field errno = ['~#{get-last-error}']
+| '$(id :: Identifier): ~get_last_error':
+    field errno = ['[$id, #{:}, ~#{get-last-error}]']
+
+meta syntax_class MaybePost:
+  kind: ~sequence
+  fields: post tail
+| ': $res':
+    field post = ['~result', expr_meta.pack_expr('block: $res')]
+    field tail = ''
+| '$tl ...':
+    field post = []
+    field tail = '$tl ...'
+
+meta syntax_class Result:
+  kind: ~group
+  fields:
+    res
+    errno :: List
+    post :: List
+    tail
+| '($(id :: Identifier): $(t :: type_meta.Parsed)) $tl ...':
+    def '$(p :: MaybePost)' = '$tl ...'
+    field res: '[$id, #{:}, $(type_meta.unpack_type(t))]'
+    field errno: []
+    field post: p.post
+    field tail: p.tail
+| '($(id :: Identifier): $(t :: type_meta.Parsed), $(e :: Errno)) $tl ...':
+    def '$(p :: MaybePost)' = '$tl ...'
+    field res: '[$id, #{:}, $(type_meta.unpack_type(t))]'
+    field errno: e.errno
+    field post: p.post
+    field tail: p.tail
+| '($(t :: type_meta.Parsed), $(e :: Errno)) $tl ...':
+    def '$(p :: MaybePost)' = '$tl ...'
+    field res: type_meta.unpack_type(t)
+    field errno: e.errno
+    field post: p.post
+    field tail: p.tail
+| '$(t :: type_meta.AfterInfixParsed('->'))':
+    def '$(p :: MaybePost)' = '$t.tail ...'
+    field res: type_meta.unpack_type(t)
+    field errno: []
+    field post: p.post
+    field tail: p.tail
+
+type.macro '$arg_ts -> $(result :: Result) $()':
   ~all_stx: stx
-  let tail = '$result_t.tail ...'
-  let varargs = type_meta.unpack_tuple_varargs(arg_ts)
-  let '($arg_t, ...)' = type_meta.unpack_tuple(arg_ts)
-  let [arg_t, ...]:
-    if !varargs
-    | [arg_t, ...]
-    | let args = [arg_t, ...]
-      args.take(varargs) ++ ['~varargs'] ++ args.drop(varargs)
-  let result_t = type_meta.unpack_singleton(result_t)
-  values(type_meta.pack_arrow('[arrow, $arg_t, ..., $result_t]')
+  let '($arg, ...)' = (type_meta.unpack_tuple_args(arg_ts)
+                         || '($(type_meta.unpack_type(arg_ts)))')
+  let [more, ...] = result.errno ++ result.post
+  values(type_meta.pack_arrow('[arrow, $arg, ..., $result.res, $more, ...]')
            .relocate_span([stx]),
-         tail)
+         result.tail)

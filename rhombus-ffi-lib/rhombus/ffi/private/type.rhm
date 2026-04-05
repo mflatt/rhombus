@@ -25,27 +25,26 @@ space.enforest type:
     parsed_packer pack
     parsed_unpacker unpack
     export:
-      pack_singleton
+      pack_type
       pack_tuple
       pack_arrow
       pack_pointer
       pack_opaque
       pack_struct
       pack_union
-      unpack_singleton
-      unpack_tuple
+      unpack_type
       unpack_pointer_element
       unpack_opaque_pointer
+      unpack_tuple_args
       unpack_arrow
-      unpack_tuple_varargs
       unpack_struct_proc_ids
       unpack_union_proc_ids
       s_exp
       
-    fun pack_singleton(t :: Term) :~ Syntax:
+    fun pack_type(t :: Term) :~ Syntax:
       pack('[($t), #false, #false]')
-    fun pack_tuple(t :: Term, varargs) :~ Syntax:
-      pack('[$t, ~tuple, $varargs]')
+    fun pack_tuple(args) :~ Syntax:
+      pack('[#false, ~tuple, $args]')
     fun pack_pointer(t :: Term, elem_t :: Term) :~ Syntax:
       pack('[($t), ~pointer, $elem_t]')
     fun pack_arrow(t :: Term) :~ Syntax:
@@ -57,15 +56,11 @@ space.enforest type:
     fun pack_union(t :: Term, proc_ids) :~ Syntax:
       pack('[($t), ~union, $proc_ids]')
 
-    fun unpack_singleton(t :: Syntax):
+    fun unpack_type(t :: Syntax):
       match unpack(t)
+      | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
+      | '[$_, ~tuple, $_]': syntax_meta.error("expected a single type", t)
       | '[($(e :: Term)), $_, $_]': e.relocate(t)
-      | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
-      | ~else: syntax_meta.error("expected a single type", t)
-    fun unpack_tuple(t :: Syntax):
-      match unpack(t)
-      | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
-      | '[$t, $_, $_]': t
     fun unpack_pointer_element(stx, t :: Syntax):
       match unpack(t)
       | '[$_, ~pointer, $elem_t]': elem_t
@@ -75,9 +70,9 @@ space.enforest type:
       | '[$_, ~opaque, $ptr_t]': ptr_t
       | ~else: #false
 
-    fun unpack_tuple_varargs(t :: Syntax):
+    fun unpack_tuple_args(t :: Syntax):
       match unpack(t)
-      | '[$t, ~tuple, $varargs]': varargs.unwrap()
+      | '[$_, ~tuple, $args]': args
       | ~else: #false
     fun unpack_arrow(t :: Syntax):
       recur loop(t = unpack(t)):
@@ -99,20 +94,20 @@ space.enforest type:
       | ~else: t
 
 expr.macro 'sizeof($(t :: type_meta.Parsed))':
-  expr_meta.pack_s_exp(['ffi2_sizeof', type_meta.s_exp(type_meta.unpack_singleton(t))])
+  expr_meta.pack_s_exp(['ffi2_sizeof', type_meta.s_exp(type_meta.unpack_type(t))])
 
 expr.macro
 | 'cast ~from ($(from_t :: type_meta.Parsed)) ~to ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
     values(expr_meta.pack_s_exp(['ffi2_cast',
                                  e,
                                  '~from',
-                                 type_meta.s_exp(type_meta.unpack_singleton(from_t)),
+                                 type_meta.s_exp(type_meta.unpack_type(from_t)),
                                  '~to',
-                                 type_meta.s_exp(type_meta.unpack_singleton(t))]),
+                                 type_meta.s_exp(type_meta.unpack_type(t))]),
            '$e.tail ...')
 | 'cast $('~to' || '') ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
     values(expr_meta.pack_s_exp(['ffi2_cast',
                                  e,
                                  '~to',
-                                 type_meta.s_exp(type_meta.unpack_singleton(t))]),
+                                 type_meta.s_exp(type_meta.unpack_type(t))]),
            '$e.tail ...')

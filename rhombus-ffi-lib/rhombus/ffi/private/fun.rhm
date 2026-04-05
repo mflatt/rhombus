@@ -23,7 +23,7 @@ defn.macro
     | syntax_meta.error("missing a `~lib` clause", stx)
     defn_meta.pack_s_exp(['def_ffi2_proc',
                           id,
-                          type_meta.s_exp(type_meta.unpack_singleton(t)),
+                          type_meta.s_exp(type_meta.unpack_type(t)),
                           '~#{c-id}',
                           c_id || id,
                           '~lib',

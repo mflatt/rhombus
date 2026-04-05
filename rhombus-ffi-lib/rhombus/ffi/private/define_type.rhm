@@ -28,7 +28,7 @@ defn.macro
                                if ext.t
                                | type_meta.unpack_opaque_pointer(ext.t)
                                    || ['array',
-                                       type_meta.s_exp(type_meta.unpack_singleton(ext.t)),
+                                       type_meta.s_exp(type_meta.unpack_type(ext.t)),
                                        '#{*}']
                                | 'ptr_t',
                                & (if ext.t
@@ -42,11 +42,11 @@ defn.macro
     let ty_name = Syntax.make_id(to_string(name))
     let pack = (if type_meta.unpack_arrow(t)
                 | 'pack_arrow'
-                | 'pack_singleton')
+                | 'pack_type')
     '«
        $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                ty_name,
-                               type_meta.s_exp(type_meta.unpack_singleton(t)),
+                               type_meta.s_exp(type_meta.unpack_type(t)),
                                '~tag', '#false']))
        type.macro '$name':
          ~all_stx: stx

@@ -27,9 +27,9 @@ type.macro '$t *':
   ~stronger_than: ~other
   let opque_ptr_t = type_meta.unpack_opaque_pointer(t)
   if opque_ptr_t
-  | type_meta.pack_singleton(opque_ptr_t)
+  | type_meta.pack_type(opque_ptr_t)
       .relocate_span([stx])
-  | let t = type_meta.unpack_singleton(t)
+  | let t = type_meta.unpack_type(t)
     type_meta.pack_pointer('[array, $t, #{*}]', t)
       .relocate_span([stx])
 
@@ -38,7 +38,7 @@ type.macro '$t #%index [$(n :: Int)]':
   ~stronger_than: ~other
   unless n.unwrap() >= 0
   | syntax_meta.error("size must be nonnegative", stx, n)
-  let t = type_meta.unpack_singleton(t)
+  let t = type_meta.unpack_type(t)
   type_meta.pack_pointer('[array, $t, $n]', t)
     .relocate_span([stx])
 
@@ -61,12 +61,12 @@ meta:
 expr.macro
 | 'malloc $(m :: MallocMode) ~as ($(t :: type_meta.Parsed)) ($(e :: expr_meta.Parsed))':
     expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e,
-                          '~as', type_meta.s_exp(type_meta.unpack_singleton(t))])
+                          '~as', type_meta.s_exp(type_meta.unpack_type(t))])
 | 'malloc $(m :: MallocMode) ~as $t ... ($e ...)':
     let '$(t :: type_meta.Parsed)' = '$t ...'
     let '$(e :: expr_meta.Parsed)' = '$e ...'
     expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e,
-                          '~as', type_meta.s_exp(type_meta.unpack_singleton(t))])
+                          '~as', type_meta.s_exp(type_meta.unpack_type(t))])
 | 'malloc $(m :: MallocMode) ($(e :: expr_meta.Parsed))':
     expr_meta.pack_s_exp(['ffi2_malloc', m.mode, e])
 
@@ -85,7 +85,7 @@ expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) 
         e
   fun default():
     values(maybe_annoted(
-             expr_meta.pack_s_exp(['ffi2_malloc', type_meta.s_exp(type_meta.unpack_singleton(t))])
+             expr_meta.pack_s_exp(['ffi2_malloc', type_meta.s_exp(type_meta.unpack_type(t))])
            ),
            tail)
   match tail
