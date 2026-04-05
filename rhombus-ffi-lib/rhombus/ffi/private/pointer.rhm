@@ -43,7 +43,7 @@ type.macro '$t *':
       type_meta.pack_type(opque_ptr_t)
         .relocate_span([stx])
   | type_meta.unpack_void(t):
-      type_meta.pack_type('ffi2_void_t_star')
+      type_meta.pack_generic_pointer('ffi2_void_t_star')
   | ~else:
       let t = type_meta.unpack_type(t)
       type_meta.pack_pointer('[ffi2_array, $t, #{*}]', t)
@@ -54,7 +54,7 @@ type.macro '$t /gcable':
   ~stronger_than: ~other
   cond
   | type_meta.unpack_generic_pointer(t):
-      type_meta.pack_type('[ffi2_gcable, $(type_meta.unpack_type(t))]')
+      type_meta.pack_generic_pointer('[ffi2_gcable, $(type_meta.unpack_type(t))]')
   | ~else:  
       let elem_t = type_meta.unpack_pointer_element(#false, t)
       unless elem_t
@@ -63,14 +63,20 @@ type.macro '$t /gcable':
       type_meta.pack_pointer('[ffi2_gcable, $t]', elem_t)
         .relocate_span([stx])
 
-type.macro '$t #%index [$(n :: Int)]':
+type.macro '$t #%index [$n_seq ...]':
   ~all_stx: stx
   ~stronger_than: ~other
-  unless n.unwrap() >= 0
-  | syntax_meta.error("size must be nonnegative", stx, n)
-  let t = type_meta.unpack_type(t)
-  type_meta.pack_pointer('[ffi2_array, $t, $n]', t)
-    .relocate_span([stx])
+  match '$n_seq ...'
+  | '$(n :: Int)':
+      unless n.unwrap() >= 0
+      | syntax_meta.error("size must be nonnegative", stx, n)
+      let t = type_meta.unpack_type(t)
+      type_meta.pack_pointer('[ffi2_array, $t, $n]', t)
+        .relocate_span([stx])
+  | ~else:
+      let t = type_meta.unpack_type(t)
+      type_meta.pack_variable_array(t, '$n_seq ...')
+        .relocate_span([stx])
 
 meta:
   syntax_class MallocMode:
@@ -104,6 +110,7 @@ expr.macro
     expr_meta.pack_s_exp(['ffi2_malloc', m.mode, wrap_size_check(self, e)])
 
 expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) $()':
+  ~op_stx: self
   ~all_stx: stx
   let tail = '$t.tail ...'
   fun annoted(e, ann):
@@ -119,9 +126,17 @@ expr.macro 'new $(m :: MallocMode) $(t :: type_meta.AfterPrefixParsed('int_t')) 
     | ~else:
         e
   fun default():
-    values(maybe_annoted(
-             expr_meta.pack_s_exp(['ffi2_malloc', type_meta.s_exp(type_meta.unpack_type(t))])
-           ),
+    let m_e:
+      match type_meta.unpack_variable_array(t)
+      | [elem_t, n_seq]:
+          println("ok")
+          expr_meta.pack_s_exp(['ffi2_malloc',
+                                type_meta.s_exp(elem_t),
+                                wrap_size_check(self, expr_meta.pack_expr(n_seq))])
+      | ~else:
+          expr_meta.pack_s_exp(['ffi2_malloc',
+                                type_meta.s_exp(type_meta.unpack_type(t))])
+    values(maybe_annoted(m_e),
            tail)
   match tail
   | '($(field_id :: Identifier): $e) $tail ...' when type_meta.unpack_union_proc_ids(t):

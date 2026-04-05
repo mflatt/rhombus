@@ -30,6 +30,9 @@ space.enforest type:
       pack_opaque
       pack_struct
       pack_union
+      pack_void
+      pack_generic_pointer
+      pack_variable_array
       unpack_type
       unpack_pointer_element
       unpack_opaque_pointer
@@ -39,6 +42,7 @@ space.enforest type:
       unpack_union_proc_ids
       unpack_void
       unpack_generic_pointer
+      unpack_variable_array
       s_exp
       
     fun pack_type(t :: Term) :~ Syntax:
@@ -55,21 +59,29 @@ space.enforest type:
       pack('[($t), ~struct, $proc_ids]')
     fun pack_union(t :: Term, proc_ids) :~ Syntax:
       pack('[($t), ~union, $proc_ids]')
+    fun pack_void(t :: Term) :~ Syntax:
+      pack('[($t), ~void, #false]')
+    fun pack_generic_pointer(t :: Term) :~ Syntax:
+      pack('[($t), ~ptr_t, #false]')
+    fun pack_variable_array(t :: Term, e_seq) :~ Syntax:
+      pack('[#false, ~vararray, ($t, $e_seq)]')
 
-    fun unpack_type(t :: Syntax):
+    fun unpack_type(t :: Syntax, ~void_ok = #false):
       match unpack(t)
       | '[$_, ~opaque, $_]': syntax_meta.error("expected a non-opaque type", t)
       | '[$_, ~tuple, $_]': syntax_meta.error("expected a single type", t)
+      | '[$_, ~vararray, $_]': syntax_meta.error("expected a fixed-sized array", t)
+      | '[$_, ~void, $_]' when !void_ok: syntax_meta.error("void type allowed only in return positions", t)
       | '[($(e :: Term)), $_, $_]': e.relocate(t)
     fun unpack_pointer_element(stx, t :: Syntax):
       match unpack(t)
       | '[$_, ~pointer, $elem_t]': elem_t
+      | '[$_, ~vararray, ($elem_t, $_)]': elem_t
       | ~else: stx && syntax_meta.error("expected a dereferenceable pointer type", stx, t)
     fun unpack_opaque_pointer(t :: Syntax):
       match unpack(t)
       | '[$_, ~opaque, $ptr_t]': ptr_t
       | ~else: #false
-
     fun unpack_tuple_args(t :: Syntax):
       match unpack(t)
       | '[$_, ~tuple, $args]': args
@@ -89,12 +101,15 @@ space.enforest type:
       | ~else: #false
     fun unpack_void(t :: Syntax):
       match unpack(t)
-      | '[(void_t), $_, $_]': #true
+      | '[$_, ~void, $_]': #true
       | ~else: #false
     fun unpack_generic_pointer(t :: Syntax):
       match unpack(t)
-      | '[(ptr_t), $_, $_]': #true
-      | '[([ffi_gcable, ptr_t]), $_, $_]': #true
+      | '[$_, ~ptr_t, $_]': #true
+      | ~else: #false
+    fun unpack_variable_array(t :: Syntax):
+      match unpack(t)
+      | '[$_, ~vararray, ($elem_t, $n_seq)]': [elem_t, n_seq]
       | ~else: #false
 
     fun s_exp(t :: Syntax):

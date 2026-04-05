@@ -75,25 +75,25 @@ meta syntax_class Result:
     tail
 | '($(id :: Identifier): $(t :: type_meta.Parsed)) $tl ...':
     def '$(p :: MaybePost)' = '$tl ...'
-    field res: '[$id, #{:}, $(type_meta.unpack_type(t))]'
+    field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field errno: []
     field post: p.post
     field tail: p.tail
 | '($(id :: Identifier): $(t :: type_meta.Parsed), $(e :: Errno)) $tl ...':
     def '$(p :: MaybePost)' = '$tl ...'
-    field res: '[$id, #{:}, $(type_meta.unpack_type(t))]'
+    field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field errno: e.errno
     field post: p.post
     field tail: p.tail
 | '($(t :: type_meta.Parsed), $(e :: Errno)) $tl ...':
     def '$(p :: MaybePost)' = '$tl ...'
-    field res: type_meta.unpack_type(t)
+    field res: type_meta.unpack_type(t, ~void_ok: #true)
     field errno: e.errno
     field post: p.post
     field tail: p.tail
 | '$(t :: type_meta.AfterInfixParsed('->'))':
     def '$(p :: MaybePost)' = '$t.tail ...'
-    field res: type_meta.unpack_type(t)
+    field res: type_meta.unpack_type(t, ~void_ok: #true)
     field errno: []
     field post: p.post
     field tail: p.tail

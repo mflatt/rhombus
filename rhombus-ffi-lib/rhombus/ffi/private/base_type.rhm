@@ -19,7 +19,6 @@ decl.macro 'bounce:
     ...»'
 
 bounce:
-  void_t
   int8_t
   uint8_t
   byte_t
@@ -45,11 +44,18 @@ bounce:
   wchar_t
   bool_t
   boolint
-  ptr_t
   racket_t
   bytes_t
   bytes_ptr_t
   path_t
+
+export type.macro 'void_t':
+  ~all_stx: stx
+  type_meta.pack_void(ffi2.pack('void_t')).relocate(stx)
+
+export type.macro 'ptr_t':
+  ~all_stx: stx
+  type_meta.pack_generic_pointer(ffi2.pack('ptr_t')).relocate(stx)
 
 module string:
   export type.macro 'mutable_string_t':
