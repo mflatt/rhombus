@@ -10,6 +10,14 @@ import:
 export:
   rename type_def as c_type
 
+meta syntax_class MaybeArgs:
+  fields: args
+| '($(id :: Identifier), ...)':
+    field args = [id, ...]
+| '':
+    field args = []
+  
+
 defn.macro
 | 'type_def $(name :: IdentifierName)':
     let '$_ ... $name_tail' = '$name'
@@ -23,7 +31,7 @@ defn.macro
          ~all_stx: stx
          type_meta.pack_opaque('$ty_name').relocate(stx)
      »'
-| 'type_def $(name :: IdentifierName):
+| 'type_def $(name :: IdentifierName) $(args :: MaybeArgs):
      $(group_option_sequence
        | '~extends: $(t :: type_meta.Parsed)'
        | '~rhombus_to_c: $rhombus_to_c_body'
@@ -32,7 +40,8 @@ defn.macro
        | '~c_to_rhombus: $c_to_rhombus_body')':
     ~all_stx: stx
     cond
-    | t && !rhombus_to_c_body && !predicate_body && !release_body && !predicate_body && !c_to_rhombus_body:
+    | t && !args.args
+        && !rhombus_to_c_body && !predicate_body && !release_body && !predicate_body && !c_to_rhombus_body:
         let '$_ ... $name_tail' = '$name'
         let ty_name = Syntax.make_id(name_tail +& "*")
         '«
@@ -51,21 +60,30 @@ defn.macro
         | syntax_meta.error("missing an `~extends` clause", stx)
         let '$_ ... $name_tail' = '$name'
         let ty_name = Syntax.make_id(to_string(name_tail))
+        let ty_name_or_app = (if args.args
+                              | [ty_name, & args.args]
+                              | ty_name)
+        let ty_name_or_app_form = (match args.args
+                                   | [arg, ...]: '[$ty_name, $('$')(expr_meta.pack_expr($arg)), ...]'
+                                   | ~else: ty_name)
+        let args_pat = (match args.args
+                        | [arg, ...]: '($('$')$arg, ...)'
+                        | ~else: '')
         fun option(kw, body):
           if body
           | [kw, expr_meta.pack_expr('block: $body')]
           | []
         '«
            $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
-                                   ty_name,
+                                   ty_name_or_app,
                                    type_meta.unpack_type(t),
                                    & option('~#{racket->c}', rhombus_to_c_body),
                                    & option('~#{predicate}', predicate_body),
                                    & option('~#{release}', release_body),
                                    & option('~#{c->racket}', c_to_rhombus_body)]))
-           type.macro '$name':
+           type.macro '$name $args_pat':
              ~all_stx: stx
-             type_meta.pack_type('$ty_name').relocate(stx)
+             type_meta.pack_type('$ty_name_or_app_form').relocate_span([stx])
          »'
 | 'type_def $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
     let ty_name = Syntax.make_id(to_string(name))

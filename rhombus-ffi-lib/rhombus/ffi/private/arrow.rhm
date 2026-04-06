@@ -33,7 +33,7 @@ type.macro
 | '#%parens $(args && '($(a :: Argument))')':
     if a.t
     | a.t
-    | type_meta.pack_tuple('[$a.arg]').relocate(args)
+    | type_meta.pack_tuple('($a.arg)').relocate(args)
 | '#%parens $(args && '($arg, ..., ~varargs, $var_arg, ...)')':
     let '($(a :: Argument), ...)' = '($arg, ...)'
     let '($(var_a :: Argument), ...)' = '($var_arg, ...)'
