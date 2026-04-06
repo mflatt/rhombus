@@ -16,6 +16,9 @@ decl.macro 'bounce:
   '«export type.macro '$id':
       ~all_stx: stx
       type_meta.pack_type(ffi2.pack('$id')).relocate(stx)
+    ...
+    export annot.macro '$id':
+      'satisfying(fun (x): x is_a_ffi2 $(ffi2.pack('$id')))'
     ...»'
 
 bounce:

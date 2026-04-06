@@ -6,7 +6,6 @@ import:
 
 export:
   Lib
-  load
 
 class Lib(name :~ maybe(PathString), private _handle):
   internal _Lib
@@ -15,11 +14,12 @@ class Lib(name :~ maybe(PathString), private _handle):
 
   method find(
     name :: String || Bytes || Symbol,
-    ~fail: fail :: maybe(() -> maybe(Pointer)) = #false
-  ) :: maybe(Pointer):
+    ~fail: fail :: maybe(() -> maybe(ptr_t)) = #false
+  ) :: maybe(ptr_t):
     ffi2.#{ffi2-lib-ref}(_handle, name, ~fail: fail)
 
   export:
+    load
     from_handle
   fun from_handle(name :: maybe(PathString), handle) :~ Lib:
     _Lib(name, handle)
@@ -31,7 +31,7 @@ fun load(
   ~as_global: as_global :: Any.to_boolean = #false,
   ~custodian: cust :: maybe(Custodian) = #false
 ) :: maybe(Lib):
-  ~name: ffi.lib
+  ~name: Lib.load
   let handle:
     ffi2.#{ffi2-lib}(path,
                      if version is_a List

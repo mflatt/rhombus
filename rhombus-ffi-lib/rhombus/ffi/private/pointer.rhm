@@ -16,7 +16,7 @@ import:
       #{void_t*} as ffi2_void_t_star
 
 export:
-  Pointer
+  ptr_t
   only_space type:
     *
     **
@@ -32,7 +32,7 @@ statinfo.key elem_type:
   ~and: fun (a, b): a && b
   ~or: fun (a, b): a || b
 
-annot.macro 'Pointer':
+annot.macro 'ptr_t':
   annot_meta.pack_predicate('ffi2.#{ptr_t?}',
                             '()')
 

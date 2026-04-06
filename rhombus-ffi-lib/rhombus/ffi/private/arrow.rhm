@@ -10,15 +10,20 @@ export:
     #%parens
     ->
 
+module class:
+  export:
+    meta:
+      parse_as_arrow
+
 meta syntax_class Argument:
   kind: ~group
   fields: t arg
-| '$(id :: Identifier): $t_seq ... = $e_seq ...':
+| '$(id :: Identifier) :: $t_seq ... = $e_seq ...':
     def '$(t :: type_meta.Parsed)' = '$t_seq ...'
     def e = expr_meta.pack_expr('$e_seq ...')
     field arg: '[$id, #{:}, $(type_meta.unpack_type(t)), #{=}, $e]'
     field t = #false
-| '$(id :: Identifier): $(i_t :: type_meta.Parsed)':
+| '$(id :: Identifier) :: $(i_t :: type_meta.Parsed)':
     field arg: '[$id, #{:}, $(type_meta.unpack_type(i_t))]'
     field t = #false
 | '$t_seq ... = $e_seq ...':
@@ -49,11 +54,11 @@ meta syntax_class Errno:
   fields: errno
 | '~errno':
     field errno = ['~errno']
-| '$(id :: Identifier): ~errno':
+| '$(id :: Identifier) :: ~errno':
     field errno = ['[$id, #{:}, ~errno]']
 | '~get_last_error':
     field errno = ['~#{get-last-error}']
-| '$(id :: Identifier): ~get_last_error':
+| '$(id :: Identifier) :: ~get_last_error':
     field errno = ['[$id, #{:}, ~#{get-last-error}]']
 
 meta syntax_class MaybePost:
@@ -67,6 +72,24 @@ meta syntax_class MaybePost:
     field tail = '$tl ...'
 
 meta syntax_class Result:
+  kind: ~group
+  fields:
+    res
+    errno :: List
+| '($(id :: Identifier) :: $(t :: type_meta.Parsed))':
+    field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
+    field errno: []
+| '($(id :: Identifier) :: $(t :: type_meta.Parsed), $(e :: Errno))':
+    field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
+    field errno: e.errno
+| '($(t :: type_meta.Parsed), $(e :: Errno))':
+    field res: type_meta.unpack_type(t, ~void_ok: #true)
+    field errno: e.errno
+| '$(t :: type_meta.Parsed)':
+    field res: type_meta.unpack_type(t, ~void_ok: #true)
+    field errno: []
+
+meta syntax_class ConvertedResult:
   kind: ~group
   fields:
     res
@@ -98,7 +121,7 @@ meta syntax_class Result:
     field post: p.post
     field tail: p.tail
 
-type.macro '$arg_ts -> $(result :: Result) $()':
+type.macro '$arg_ts -> $(result :: ConvertedResult) $()':
   ~all_stx: stx
   let '($arg, ...)' = (type_meta.unpack_tuple_args(arg_ts)
                          || '($(type_meta.unpack_type(arg_ts)))')
@@ -106,3 +129,14 @@ type.macro '$arg_ts -> $(result :: Result) $()':
   values(type_meta.pack_arrow('[arrow, $arg, ..., $result.res, $more, ...]')
            .relocate_span([stx]),
          result.tail)
+
+meta fun parse_as_arrow(args, res_seq, body_seq):
+  let '$(arg_ts :: type_meta.Parsed)' = '#%parens $args'
+  let '$(result :: Result)'  = res_seq
+  let '($arg, ...)' = (type_meta.unpack_tuple_args(arg_ts)
+                         || '($(type_meta.unpack_type(arg_ts)))')
+  let [more, ...] = result.errno ++ (match body_seq
+                                     | '': []
+                                     | ~else: ['~result',
+                                               expr_meta.pack_expr('block: $body_seq')])
+  type_meta.pack_arrow('[arrow, $arg, ..., $result.res, $more, ...]')

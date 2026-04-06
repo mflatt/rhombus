@@ -8,15 +8,24 @@ import:
   "ffi/private/struct.rhm"
   "ffi/private/define_type.rhm"
   "ffi/private/fun.rhm"
+  "ffi/private/memory.rhm"
   "ffi/private/string.rhm"
 
+namespace foreign:
+  export:
+    rename:
+      define_type.c_type as type
+      fun.c_fun as fun
+      fun.c_def as def
+      fun.c_linker as linker
+
 export:
+  foreign
   all_from(.lib)
   all_from(.type)
   all_from(.base_type)
   all_from(.pointer)
   all_from(.arrow)
   all_from(.struct)
-  all_from(.define_type)
-  all_from(.fun)
+  all_from(.memory)
   all_from(.string)

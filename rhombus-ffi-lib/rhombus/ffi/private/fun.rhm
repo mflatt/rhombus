@@ -2,13 +2,15 @@
 import:
   "type.rhm" open
   "lib.rhm".Lib
+  "arrow.rhm"!class.parse_as_arrow
   lib("ffi2/main.rkt"):
     expose:
       #{define-ffi2-procedure} as def_ffi2_proc
 
 export:
+  c_def
   c_fun
-  c_definer
+  c_linker
 
 meta fun build_c_fun(stx,
                      who,
@@ -16,27 +18,46 @@ meta fun build_c_fun(stx,
                      lib_handle, lib_block,
                      c_id,
                      fail_block,
-                     wrap_block):
+                     wrap_block,
+                     ret):
   unless type_meta.unpack_arrow(t)
   | syntax_meta.error("not an arrow type", stx, t)
   unless lib_handle || lib_block
   | syntax_meta.error("missing a `~lib` clause", stx)
-  defn_meta.pack_s_exp(['def_ffi2_proc',
-                        id,
-                        type_meta.s_exp(type_meta.unpack_type(t)),
-                        '~#{c-id}',
-                        c_id || id,
-                        '~lib',
-                        lib_handle || expr_meta.pack_expr('extract_lib(#' $who, block: $lib_block)'),
-                        & (if fail_block
-                           | ['~fail', expr_meta.pack_expr('check_fail_proc(#' $who, block: $fail_block)')]
-                           | []),
-                        & (if wrap_block
-                           | ['~wrap', expr_meta.pack_expr('check_wrap_proc(#' $who, block: $wrap_block)')]
-                           | [])])
+  fun build_defn(f_id):
+    defn_meta.pack_s_exp(['def_ffi2_proc',
+                          f_id,
+                          type_meta.s_exp(type_meta.unpack_type(t)),
+                          '~#{c-id}',
+                          c_id || id,
+                          '~lib',
+                          lib_handle || expr_meta.pack_expr('extract_lib(#' $who, block: $lib_block)'),
+                          & (if fail_block
+                             | ['~fail', expr_meta.pack_expr('check_fail_proc(#' $who, block: $fail_block)')]
+                             | []),
+                          & (if wrap_block
+                             | ['~wrap', expr_meta.pack_expr('check_wrap_proc(#' $who, block: $wrap_block)')]
+                             | [])])
+  if !ret
+  | build_defn(id)
+  | let tmp_id = Syntax.make_temp_id(id)
+    let [arg, ...]: extract_temp_arg_ids(type_meta.unpack_type(t))
+    match ret
+    | '$(bound_as expr_meta.space: 'values')($(ann :: annot_meta.Parsed), ...)':
+        '
+          $(build_defn(tmp_id))
+          fun $id($arg, ...) :: values($ann, ...):
+            $tmp_id($arg, ...)
+        '
+    | '$(ann :: annot_meta.Parsed)':
+        '
+          $(build_defn(tmp_id))
+          fun $id($arg, ...) :: $ann:
+            $tmp_id($arg, ...)
+        '
 
 defn.macro
-| 'c_fun $(id :: Identifier) $(t :: type_meta.Parsed):
+| 'c_def $(id :: Identifier) $(t :: type_meta.Parsed):
      $(group_option_sequence
        | '~lib: $lib_block'
        | '~c_id: $(c_id :: Identifier)'
@@ -50,8 +71,9 @@ defn.macro
                 #false, lib_block,
                 c_id,
                 fail_block,
-                wrap_block)
-| 'c_fun $(id :: Identifier) $(t :: type_meta.Parsed)':
+                wrap_block,
+                #false)
+| 'c_def $(id :: Identifier) $(t :: type_meta.Parsed)':
     ~op_stx: self
     ~all_stx: stx
     build_c_fun(stx,
@@ -60,10 +82,51 @@ defn.macro
                 #false, #false,
                 #false,
                 #false,
+                #false,
                 #false)
 
+meta syntax_class Header:
+  description: "foreign-function definition"
+  fields: id args [r_seq, ...] ret
+| '$(id :: Identifier) $(args && '($arg, ...)') :: $r_seq ... :: $ret_seq ...':
+    field ret = '$ret_seq ...'
+| '$(id :: Identifier) $(args && '($arg, ...)') :: $r_seq ...':
+    field ret = #false
+
+defn.macro
+| 'c_fun $(header :: Header):
+     $(group_option_sequence
+       | '~lib: $lib_block'
+       | '~c_id: $(c_id :: Identifier)'
+       | '~fail: $fail_block'
+       | '~wrap: $wrap_block')
+     $body
+     ...':
+    ~op_stx: self
+    ~all_stx: stx
+    let t = parse_as_arrow(header.args, '$header.r_seq ...', '$body; ...')
+    build_c_fun(stx,
+                self,
+                header.id, t,
+                #false, lib_block,
+                c_id,
+                fail_block,
+                wrap_block,
+                header.ret)
+| 'c_fun $(header :: Header)':
+    ~op_stx: self
+    ~all_stx: stx
+    let t = parse_as_arrow(header.args, '$header.r_seq ...', '')
+    build_c_fun(stx,
+                self,
+                header.id, t,
+                #false, #false,
+                #false,
+                #false,
+                #false,
+                header.ret)
   
-defn.macro 'c_definer $(name :: Name):
+defn.macro 'c_linker $(name :: Name):
                $(group_option_sequence
                  | '~lib: $lib_block'
                  | '~c_id: $(c_id :: Identifier)'
@@ -82,31 +145,36 @@ defn.macro 'c_definer $(name :: Name):
        | 'def default_wrap = check_wrap_proc(#' $self, $default_wrap_block)'
        | '')
      defn.macro
-     | '$name $('$')(id :: Identifier) $('$')t_seq $('...'):
+     | '$name $('$')(header :: Header):
           $('$')(group_option_sequence
                  | '~c_id: $('$')(c_id :: Identifier)'
                  | '~fail: $('$')fail_block'
-                 | '~wrap: $('$')wrap_block')':
+                 | '~wrap: $('$')wrap_block')
+          $('$')body
+          $('...')':
          ~op_stx: self
          ~all_stx: stx
-         let '$('$')(t :: type_meta.Parsed)' = '$('$')t_seq $('...')'
+         let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '$('$')body $('...')')
          build_c_fun(stx,
                      self,
-                     id, t,
+                     header.id, t,
                      'lib', #false,
                      c_id,
                      fail_block || $(default_fail_block && '«'default_fail'»'),
-                     wrap_block || $(default_wrap_block && '«'default_wrap'»'))
-     | '$name $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
+                     wrap_block || $(default_wrap_block && '«'default_wrap'»'),
+                     header.ret)
+     | '$name $('$')(header :: Header)':
          ~op_stx: self
          ~all_stx: stx
+         let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '')
          build_c_fun(stx,
                      self,
-                     id, t,
+                     header.id, t,
                      'lib', #false,
                      #false,
                      $(default_fail_block && '«'default_fail'»'),
-                     $(default_wrap_block && '«'default_wrap'»'))
+                     $(default_wrap_block && '«'default_wrap'»'),
+                     header.ret)
    »'        
 
 fun extract_lib(who, lib):
@@ -132,3 +200,26 @@ fun check_wrap_proc(who, proc):
                  error.annot_msg("value for wrapping function"),
                  error.annot("Function.of_arity(1)"),
                  error.val(proc))
+
+meta fun extract_temp_arg_ids(arrow_t):
+  let '[arrow, $a, ...]' = arrow_t
+  let [arg, ..., result]:
+    // peel off options at end
+    recur loop(as = [a, ...]):
+      match as
+      | []: []
+      | [& as, '~abi', _]: loop(as)
+      | [& as, '~result', _]: loop(as)
+      | [& as, '$(_ :: Keyword)']: loop(as)
+      | [& as, [_, _, '~errno']]: loop(as)
+      | [& as, [_, _, '~#{get-last-error}']]: loop(as)
+      | ~else: as
+  let [arg, ...]:
+    for List (arg in [arg, ...]):
+      skip_when (match arg
+                 | '~varargs': #true
+                 | '[$_, #{=}, $_]': #true
+                 | '[$_, #{:}, $_, #{=}, $_]': #true
+                 | ~else: #false)
+      arg
+  [Syntax.make_temp_id(arg), ...]

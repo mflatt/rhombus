@@ -3,9 +3,11 @@ import:
   lib("ffi2/main.rkt") as ffi2:
     expose:
       #{ffi2-sizeof} as ffi2_sizeof
+      #{ffi2-is-a?} as ffi2_is_a
 
 export:
   type
+  is_a_ffi2
   meta:
     type_meta
 
@@ -119,3 +121,6 @@ space.enforest type:
 
 expr.macro 'sizeof($(t :: type_meta.Parsed))':
   expr_meta.pack_s_exp(['ffi2_sizeof', type_meta.s_exp(type_meta.unpack_type(t))])
+
+expr.macro '$e is_a_ffi2 $(t :: Term)':
+  expr_meta.pack_s_exp(['ffi2_is_a', e, t])

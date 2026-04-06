@@ -15,7 +15,7 @@ meta syntax_class MaybeArgs:
 | '($(id :: Identifier), ...)':
     field args = [id, ...]
 | '':
-    field args = []
+    field args = #false
   
 
 defn.macro
@@ -30,6 +30,8 @@ defn.macro
        type.macro '$name':
          ~all_stx: stx
          type_meta.pack_opaque('$ty_name').relocate(stx)
+       annot.macro '$name':
+         'satisfying(fun (x): x is_a_ffi2 $ty_name)'
      »'
 | 'type_def $(name :: IdentifierName) $(args :: MaybeArgs):
      $(group_option_sequence
@@ -98,4 +100,6 @@ defn.macro
        type.macro '$name':
          ~all_stx: stx
          type_meta . $pack('$ty_name').relocate(stx)
+       annot.macro '$name':
+         'satisfying(fun (x): x is_a_ffi2 $ty_name)'
      »'
