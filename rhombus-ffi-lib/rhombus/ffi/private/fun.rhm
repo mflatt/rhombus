@@ -145,7 +145,35 @@ defn.macro 'c_linker $(name :: Name):
        | 'def default_wrap = check_wrap_proc(#' $self, $default_wrap_block)'
        | '')
      defn.macro
-     | '$name $('$')(header :: Header):
+     | 'c_def $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed):
+          $('$')(group_option_sequence
+                 | '~lib: $('$')lib_block'
+                 | '~c_id: $('$')(c_id :: Identifier)'
+                 | '~fail: $('$')fail_block'
+                 | '~wrap: $('$')wrap_block')':
+         ~op_stx: self
+         ~all_stx: stx
+         build_c_fun(stx,
+                     self,
+                     id, t,
+                     #false, lib_block,
+                     c_id,
+                     fail_block,
+                     wrap_block,
+                     #false)
+     | 'c_def $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
+         ~op_stx: self
+         ~all_stx: stx
+         build_c_fun(stx,
+                     self,
+                     id, t,
+                     #false, #false,
+                     #false,
+                     #false,
+                     #false,
+                     #false)
+     defn.macro
+     | 'c_fun $('$')(header :: Header):
           $('$')(group_option_sequence
                  | '~c_id: $('$')(c_id :: Identifier)'
                  | '~fail: $('$')fail_block'
@@ -163,7 +191,7 @@ defn.macro 'c_linker $(name :: Name):
                      fail_block || $(default_fail_block && '«'default_fail'»'),
                      wrap_block || $(default_wrap_block && '«'default_wrap'»'),
                      header.ret)
-     | '$name $('$')(header :: Header)':
+     | 'c_fun $('$')(header :: Header)':
          ~op_stx: self
          ~all_stx: stx
          let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '')
@@ -175,6 +203,11 @@ defn.macro 'c_linker $(name :: Name):
                      $(default_fail_block && '«'default_fail'»'),
                      $(default_wrap_block && '«'default_wrap'»'),
                      header.ret)
+     namespace $name:
+       export:
+         rename:
+           c_def as def
+           c_fun as fun
    »'        
 
 fun extract_lib(who, lib):
