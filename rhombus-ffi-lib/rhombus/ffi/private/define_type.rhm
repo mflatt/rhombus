@@ -80,13 +80,14 @@ defn.macro
           match c_to_rhombus_body
           | '$(fun_id && (bound_as expr_meta.space: 'fun'))
                $(args && '($_)')
-               $(ann_op && ((bound_as annot_meta.space: '::') || (bound_as annot_meta.space: ':~'))) $ann_seq ...:
+               $(ann_op :: annot_meta.BindOp) $ann_seq ...:
                  $(body :: Block)':
               let '$(ann :: annot_meta.Parsed)' = '$ann_seq ...'
               values('$fun_id $args $ann_op $ann $body',
                      ann)
           | ~else:
               values(c_to_rhombus_body, 'Any')
+        let pack_type = (if type_meta.unpack_pointer_type(#false, t) | 'pack_pointable' | 'pack_type')
         '«
            $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                    ty_name_or_app,
@@ -97,13 +98,17 @@ defn.macro
                                    & option('~#{c->racket}', c_to_rhombus_body)]))
            type.macro '$name $args_pat':
              ~all_stx: stx
-             type_meta.pack_type('$ty_name_or_app_form', '$ann').relocate_span([stx])
+             type_meta. $(pack_type)('$ty_name_or_app_form', '$ann').relocate_span([stx])
          »'
 | 'c_type $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
     let ty_name = Syntax.make_id(to_string(name))
-    let pack = (if type_meta.unpack_arrow(t)
-                | 'pack_arrow'
-                | 'pack_type')
+    let pack = (cond
+                | type_meta.unpack_arrow(t):
+                    'pack_arrow'
+                | type_meta.unpack_pointer_type(#false, t):
+                    'pack_pointable'                    
+                | ~else:
+                    'pack_type')
     let ann = type_meta.unpack_annot(t)
     '«
        $(defn_meta.pack_s_exp(['#{define-ffi2-type}',

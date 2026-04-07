@@ -233,13 +233,13 @@
          (syntax-parse ret
            #:datum-literals (group)
            [(op::annotate-op (~optional _::values-id-annot) (~and p (_::parens (~and g (group ret-seq ...)) ...)))
-            #:when (attribute op.check?)
+            #:when (attribute op.is_checked)
             #:with (id ...) (map relocate+reraw
                                  (syntax->list #'(g ...))
                                  (generate-temporaries #'(g ...)))
             #`((id ...) (op (parens (group id) ...)) ((op ret-seq ...) ...))]
            [(op::annotate-op . tail)
-            #:when (attribute op.check?)
+            #:when (attribute op.is_checked)
             #:with id (relocate+reraw #'tail
                                       (car (generate-temporaries '(result-ann))))
             #`((id) (op id) (#,ret))]

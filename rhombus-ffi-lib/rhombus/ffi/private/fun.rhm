@@ -6,6 +6,11 @@ import:
   lib("ffi2/main.rkt"):
     expose:
       #{define-ffi2-procedure} as def_ffi2_proc
+      #{ffi2-lib-ref} as ffi2_lib_ref
+  lib("ffi2/main.rkt")!unsafe:
+    expose:
+      #{unsafe-ffi2-ref} as ffi2_ref
+      #{unsafe-ffi2-cast} as ffi2_cast
 
 module foreign:
   export:
@@ -20,11 +25,7 @@ meta fun build_c_fun(stx,
                      c_id,
                      fail_block,
                      wrap_block,
-                     ret):
-  unless type_meta.unpack_arrow(t)
-  | syntax_meta.error("not an arrow type", stx, t)
-  unless lib_handle || lib_block
-  | syntax_meta.error("missing a `~lib` clause", stx)
+                     ret, ret_is_checked):
   fun build_defn(f_id):
     defn_meta.pack_s_exp(['def_ffi2_proc',
                           f_id,
@@ -53,18 +54,84 @@ meta fun build_c_fun(stx,
     | '$(bound_as expr_meta.space: 'values')($(ann :: annot_meta.Parsed), ...)':
         '
           $(build_defn(tmp_id))
-          fun $id($arg, ...) :: values($ann, ...):
+          fun $id($arg, ...) $(if ret_is_checked | '::' | ':~') values($ann, ...):
             $tmp_id($arg, ...)
         '
     | '$(ann :: annot_meta.Parsed)':
         '
           $(build_defn(tmp_id))
-          fun $id($arg, ...) :: $ann:
+          fun $id($arg, ...) $(if ret_is_checked | '::' | ':~') $ann:
             $tmp_id($arg, ...)
         '
 
+meta fun build_c_def(stx,
+                     who,
+                     is_at, id, t,
+                     lib_handle, lib_block,
+                     c_id,
+                     fail_block,
+                     wrap_block,
+                     ret, ret_is_checked):
+  unless lib_handle || lib_block
+  | syntax_meta.error("missing a `~lib` clause", stx)
+  cond
+  | !is_at && type_meta.unpack_arrow(t):
+      build_c_fun(stx,
+                  who,
+                  id, t,
+                  lib_handle, lib_block,
+                  c_id,
+                  fail_block,
+                  wrap_block,
+                  ret, ret_is_checked)
+  | ~else:
+      let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)
+      let (_, si) = annot_meta.unpack_predicate(ann)
+      '«
+          def $id = dynamic(
+            block:
+              $(if fail_block
+                | 'let fail: check_fail_proc(#' $who, block: $fail_block)'
+                | '')
+              $(if wrap_block
+                | 'let wrap: check_wrap_proc(#' $who, block: $wrap_block)'
+                | '')
+              let p:
+                ffi2_lib_ref($(lib_handle || expr_meta.pack_expr('extract_lib(#' $who, block: $lib_block)')),
+                             $(to_string(c_id || id).utf8_bytes()),
+                             $(each if fail_block
+                               | ['~fail', 'fun (): #false']
+                               | []),
+                             ...)
+              $(if fail_block
+                | 'guard p | fail(#' $(c_id || id))'
+                | '')
+              let v:
+                $(if is_at
+                  | expr_meta.pack_s_exp(['ffi2_cast',
+                                          'p',
+                                          '~to',
+                                          type_meta.s_exp(type_meta.unpack_pointer_type(stx, t))])
+                  | expr_meta.pack_s_exp(['ffi2_ref',
+                                          'p',
+                                          type_meta.s_exp(type_meta.unpack_type(t))]))
+              $(if wrap_block
+                | 'wrap(v)'
+                | 'v')
+          )
+          statinfo.macro '$id': '$si'
+       »'
+
+meta syntax_class MaybeAt:
+  kind: ~sequence
+  fields: is_at
+| '$(bound_as bind_meta.space: '&')':
+     field is_at = #true
+| '':
+     field is_at = #false
+
 defn.macro
-| 'c_def $(id :: Identifier) $(t :: type_meta.Parsed):
+| 'c_def $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed):
      $(group_option_sequence
        | '~lib: $lib_block'
        | '~c_id: $(c_id :: Identifier)'
@@ -72,33 +139,35 @@ defn.macro
        | '~wrap: $wrap_block')':
     ~op_stx: self
     ~all_stx: stx
-    build_c_fun(stx,
+    build_c_def(stx,
                 self,
-                id, t,
+                at.is_at, id, t,
                 #false, lib_block,
                 c_id,
                 fail_block,
                 wrap_block,
-                #false)
-| 'c_def $(id :: Identifier) $(t :: type_meta.Parsed)':
+                #false, #false)
+| 'c_def $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed)':
     ~op_stx: self
     ~all_stx: stx
-    build_c_fun(stx,
+    build_c_def(stx,
                 self,
-                id, t,
+                at.is_at, id, t,
                 #false, #false,
                 #false,
                 #false,
                 #false,
-                #false)
+                #false, #false)
 
 meta syntax_class Header:
   description: "foreign-function definition"
-  fields: id args [r_seq, ...] ret
-| '$(id :: Identifier) $(args && '($arg, ...)') :: $r_seq ... :: $ret_seq ...':
+  fields: id args [r_seq, ...] ret ret_is_checked
+| '$(id :: Identifier) $(args && '($arg, ...)') $(ann_op :: annot_meta.BindOp) $r_seq ... :: $ret_seq ...':
     field ret = '$ret_seq ...'
-| '$(id :: Identifier) $(args && '($arg, ...)') :: $r_seq ...':
+    field ret_is_checked = ann_op.is_checked
+| '$(id :: Identifier) $(args && '($arg, ...)') $(ann_op :: annot_meta.BindOp) $r_seq ...':
     field ret = #false
+    field ret_is_checked = ann_op.is_checked
 
 defn.macro
 | 'c_fun $(header :: Header):
@@ -112,26 +181,26 @@ defn.macro
     ~op_stx: self
     ~all_stx: stx
     let t = parse_as_arrow(header.args, '$header.r_seq ...', '$body; ...')
-    build_c_fun(stx,
+    build_c_def(stx,
                 self,
-                header.id, t,
+                #false, header.id, t,
                 #false, lib_block,
                 c_id,
                 fail_block,
                 wrap_block,
-                header.ret)
+                header.ret, header.ret_is_checked)
 | 'c_fun $(header :: Header)':
     ~op_stx: self
     ~all_stx: stx
     let t = parse_as_arrow(header.args, '$header.r_seq ...', '')
-    build_c_fun(stx,
+    build_c_def(stx,
                 self,
-                header.id, t,
+                #false, header.id, t,
                 #false, #false,
                 #false,
                 #false,
                 #false,
-                header.ret)
+                header.ret, header.ret_is_checked)
   
 defn.macro 'c_linker $(name :: Name):
                $(group_option_sequence
@@ -152,7 +221,7 @@ defn.macro 'c_linker $(name :: Name):
        | 'def default_wrap = check_wrap_proc(#' $self, $default_wrap_block)'
        | '')
      defn.macro
-     | 'c_def $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed):
+     | 'c_def $('$')(at :: MaybeAt) $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed):
           $('$')(group_option_sequence
                  | '~lib: $('$')lib_block'
                  | '~c_id: $('$')(c_id :: Identifier)'
@@ -160,25 +229,25 @@ defn.macro 'c_linker $(name :: Name):
                  | '~wrap: $('$')wrap_block')':
          ~op_stx: self
          ~all_stx: stx
-         build_c_fun(stx,
+         build_c_def(stx,
                      self,
-                     id, t,
+                     at.is_at, id, t,
                      #false, lib_block,
                      c_id,
                      fail_block,
                      wrap_block,
-                     #false)
-     | 'c_def $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
+                     #false, #false)
+     | 'c_def $('$')(at :: MaybeAt) $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
          ~op_stx: self
          ~all_stx: stx
-         build_c_fun(stx,
+         build_c_def(stx,
                      self,
-                     id, t,
+                     at.is_at, id, t,
                      #false, #false,
                      #false,
                      #false,
                      #false,
-                     #false)
+                     #false, #false)
      defn.macro
      | 'c_fun $('$')(header :: Header):
           $('$')(group_option_sequence
@@ -190,26 +259,26 @@ defn.macro 'c_linker $(name :: Name):
          ~op_stx: self
          ~all_stx: stx
          let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '$('$')body $('...')')
-         build_c_fun(stx,
+         build_c_def(stx,
                      self,
-                     header.id, t,
+                     #false, header.id, t,
                      'lib', #false,
                      c_id,
                      fail_block || $(default_fail_block && '«'default_fail'»'),
                      wrap_block || $(default_wrap_block && '«'default_wrap'»'),
-                     header.ret)
+                     header.ret, header.ret_is_checked)
      | 'c_fun $('$')(header :: Header)':
          ~op_stx: self
          ~all_stx: stx
          let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '')
-         build_c_fun(stx,
+         build_c_def(stx,
                      self,
-                     header.id, t,
+                     #false, header.id, t,
                      'lib', #false,
                      #false,
                      $(default_fail_block && '«'default_fail'»'),
                      $(default_wrap_block && '«'default_wrap'»'),
-                     header.ret)
+                     header.ret, header.ret_is_checked)
      namespace $name:
        export:
          rename:

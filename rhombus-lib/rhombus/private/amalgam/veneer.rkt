@@ -55,7 +55,7 @@
          ;; and "veneer-meta.rkt"
          (define finish-data #`([orig-stx base-stx #,(intro #'scope-stx)
                                           reflect-name #,effect-id name name-extends tail-name
-                                          #,(attribute ann-op.check?) ann-op.name (ann-term ...)]
+                                          #,(attribute ann-op.is_checked) ann-op.name (ann-term ...)]
                                 ;; data accumulated from parsed clauses:
                                 ()))
          (annotation-to-be-defined! #'name)

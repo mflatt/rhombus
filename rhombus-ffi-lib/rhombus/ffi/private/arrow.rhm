@@ -21,13 +21,13 @@ meta syntax_class Argument:
     t
     annot
     arg
-| '$(id :: Identifier) :: $t_seq ... = $e_seq ...':
+| '$(id :: Identifier) $(ann_op :: annot_meta.BindOp)  $t_seq ... = $e_seq ...':
     def '$(t :: type_meta.Parsed)' = '$t_seq ...'
     def e = expr_meta.pack_expr('$e_seq ...')
     field arg: '[$id, #{:}, $(type_meta.unpack_type(t)), #{=}, $e]'
     field annot = #false
     field t = #false
-| '$(id :: Identifier) :: $(i_t :: type_meta.Parsed)':
+| '$(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(i_t :: type_meta.Parsed)':
     field arg: '[$id, #{:}, $(type_meta.unpack_type(i_t))]'
     field annot = type_meta.unpack_annot(i_t)
     field t = #false
@@ -84,11 +84,11 @@ meta syntax_class Result:
     res
     annot
     errno :: List
-| '($(id :: Identifier) :: $(t :: type_meta.Parsed))':
+| '($(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed))':
     field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field annot: type_meta.unpack_annot(t)
     field errno: []
-| '($(id :: Identifier) :: $(t :: type_meta.Parsed), $(e :: Errno))':
+| '($(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed), $(e :: Errno))':
     field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field annot: type_meta.unpack_annot(t)
     field errno: e.errno
@@ -109,14 +109,14 @@ meta syntax_class ConvertedResult:
     errno :: List
     post :: List
     tail
-| '($(id :: Identifier): $(t :: type_meta.Parsed)) $tl ...':
+| '($(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed)) $tl ...':
     def '$(p :: MaybePost)' = '$tl ...'
     field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field annot: type_meta.unpack_annot(t)
     field errno: []
     field post: p.post
     field tail: p.tail
-| '($(id :: Identifier): $(t :: type_meta.Parsed), $(e :: Errno)) $tl ...':
+| '($(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed), $(e :: Errno)) $tl ...':
     def '$(p :: MaybePost)' = '$tl ...'
     field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field annot: type_meta.unpack_annot(t)

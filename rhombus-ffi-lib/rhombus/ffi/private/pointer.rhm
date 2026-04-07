@@ -44,7 +44,7 @@ type.macro '$t *':
   let opque_ptr_t = type_meta.unpack_opaque_pointer(t)
   cond 
   | opque_ptr_t:
-      type_meta.pack_type(opque_ptr_t, 'PointerOf(Any, ptr_t)')
+      type_meta.pack_pointable(opque_ptr_t, 'PointerOf(Any, ptr_t)')
         .relocate_span([stx])
   | type_meta.unpack_void(t):
       type_meta.pack_generic_pointer('ffi2_void_t_star')
@@ -237,23 +237,25 @@ expr.macro
 
 expr.macro
 | 'cast ~from ($(from_t :: type_meta.Parsed)) ~to ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
+    ~all_stx: stx
     values(add_annot(
              expr_meta.pack_s_exp(['ffi2_cast',
                                    e,
                                    '~from',
-                                   type_meta.s_exp(type_meta.unpack_type(from_t)),
+                                   type_meta.s_exp(type_meta.unpack_pointer_type(stx, from_t)),
                                    '~to',
-                                   type_meta.s_exp(type_meta.unpack_type(t))]),
+                                   type_meta.s_exp(type_meta.unpack_pointer_type(stx, t))]),
              type_meta.unpack_annot(t)
            ),
            '$e.tail ...')
 | 'cast $('~to' || '') ($(t :: type_meta.Parsed)) $(e :: expr_meta.AfterInfixParsed('*')) $()':
     ~op_stx: self
+    ~all_stx: stx
     values(add_annot(
              expr_meta.pack_s_exp(['ffi2_cast',
                                    wrap_ptr_t_check(self, e),
                                    '~to',
-                                   type_meta.s_exp(type_meta.unpack_type(t))]),
+                                   type_meta.s_exp(type_meta.unpack_pointer_type(stx, t))]),
              type_meta.unpack_annot(t)
            ),
            '$e.tail ...')

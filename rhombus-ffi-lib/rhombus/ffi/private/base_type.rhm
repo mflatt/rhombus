@@ -52,7 +52,6 @@ bounce:
   boolint_t Boolean
   racket_t Any
   bytes_t Bytes
-  bytes_ptr_t Bytes
   path_t Path
 
 export type.macro 'void_t':
@@ -63,10 +62,14 @@ export type.macro 'ptr_t':
   ~all_stx: stx
   type_meta.pack_generic_pointer(ffi2.pack('ptr_t')).relocate(stx)
 
+export type.macro 'bytes_ptr_t':
+  ~all_stx: stx
+  type_meta.pack_pointable(ffi2.pack('bytes_ptr_t'), 'Bytes').relocate(stx)
+
 module string:
   export type.macro 'mutable_string_t':
     ~all_stx: stx
-    type_meta.pack_type(ffi2.pack('string_t'), 'String').relocate(stx)
+    type_meta.pack_pointable(ffi2.pack('string_t'), 'String').relocate(stx)
 
 /*
   void_t*

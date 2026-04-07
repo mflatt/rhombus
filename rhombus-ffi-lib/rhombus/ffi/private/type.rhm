@@ -42,6 +42,7 @@ space.enforest type:
       pack_tuple
       pack_arrow
       pack_pointer
+      pack_pointable
       pack_opaque
       pack_struct
       pack_union
@@ -59,6 +60,7 @@ space.enforest type:
       unpack_void
       unpack_generic_pointer
       unpack_variable_array
+      unpack_pointer_type
       unpack_annot
       unpack_tuple_annots
       s_exp
@@ -69,6 +71,8 @@ space.enforest type:
       pack('[#false, ~tuple, $args, $anns]')
     fun pack_pointer(t :: Term, elem_t :: Term, ann :: Syntax) :~ Syntax:
       pack('[($t), ~pointer, $elem_t, $ann]')
+    fun pack_pointable(t :: Term, ann :: Syntax) :~ Syntax:
+      pack('[($t), ~pointable, #false, $ann]')
     fun pack_arrow(t :: Term, ann :: Syntax) :~ Syntax:
       pack('[($t), ~arrow, #false, $ann]')
     fun pack_opaque(ptr_t :: Term) :~ Syntax:
@@ -133,6 +137,13 @@ space.enforest type:
       match unpack(t)
       | '[$_, ~vararray, ($elem_t, $n_seq), $_]': [elem_t, n_seq]
       | ~else: #false
+    fun unpack_pointer_type(stx, t :: Syntax):
+      match unpack(t)
+      | '[($t), ~ptr_t, $_, $_]': t
+      | '[($t), ~pointer, $_, $_]': t
+      | '[($t), ~pointable, $_, $_]': t
+      | '[($t), ~arrow, $_, $_]': t
+      | ~else: stx && syntax_meta.error("expected a pointer type", stx, t)
 
     fun unpack_annot(t :: Syntax):
       match unpack(t)
