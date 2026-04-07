@@ -2,6 +2,7 @@
 import:
   "type.rhm" open
   "base_type.rhm".int_t
+  "base_type.rhm".uintptr_t
   "check.rhm" open
   lib("ffi2/main.rkt")!unsafe as ffi2_unsafe:
     expose:
@@ -15,6 +16,8 @@ import:
       gcable as ffi2_gcable
       #{void_t*} as ffi2_void_t_star
       #{ffi2-free} as ffi2_free
+      #{ptr_t->uintptr}
+      #{uintptr->ptr_t}
 
 export:
   ptr_t
@@ -29,6 +32,8 @@ export:
   new
   mem
   cast
+  ptr_to_uintptr
+  uintptr_to_ptr
 
 annot.macro
 | 'ptr_t/gcable':
@@ -262,6 +267,12 @@ expr.macro
 
 fun free(p :: ptr_t):
   ffi2_free(p)
+
+fun ptr_to_uintptr(p :: ptr_t) :~ Int:
+  #{ptr_t->uintptr}(p)
+
+fun uintptr_to_ptr(i :: uintptr_t):
+  #{uintptr->ptr_t}(i)
 
 meta fun pointer_element_ann(t):
   let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)
