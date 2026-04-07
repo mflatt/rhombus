@@ -57,7 +57,8 @@
                      abstract
                      primitive_property)
          (for-space rhombus/veneer_clause
-                    converter)
+                    converter
+                    allow_dynamic)
          (for-space rhombus/interface_clause
                     implementable))
 
@@ -657,6 +658,12 @@
    (lambda (stx data)
      (syntax-parse stx
        [(_) (wrap-class-clause #`(#:converter))]))))
+
+(define-veneer-clause-syntax allow_dynamic
+  (veneer-clause-transformer
+   (lambda (stx data)
+     (syntax-parse stx
+       [(_) (wrap-class-clause #`(#:allow_dynamic))]))))
 
 (define-for-syntax parse-class-method
    (lambda (stx data)

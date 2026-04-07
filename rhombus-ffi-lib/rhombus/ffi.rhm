@@ -6,18 +6,22 @@ import:
   "ffi/private/pointer.rhm"
   "ffi/private/arrow.rhm"
   "ffi/private/struct.rhm"
-  "ffi/private/define_type.rhm"
-  "ffi/private/fun.rhm"
   "ffi/private/memory.rhm"
   "ffi/private/string.rhm"
 
 namespace foreign:
+  import:
+    "ffi/private/struct.rhm"!foreign as struct
+    "ffi/private/define_type.rhm"!foreign as define_type
+    "ffi/private/fun.rhm"!foreign as fun
   export:
     rename:
       define_type.c_type as type
       fun.c_fun as fun
       fun.c_def as def
       fun.c_linker as linker
+      struct.c_struct as struct
+      struct.c_union as union
 
 export:
   foreign

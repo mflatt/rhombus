@@ -7,8 +7,9 @@ import:
       ptr_t
       array
 
-export:
-  rename type_def as c_type
+module foreign:
+  export:
+    c_type
 
 meta syntax_class MaybeArgs:
   fields: args
@@ -19,7 +20,7 @@ meta syntax_class MaybeArgs:
   
 
 defn.macro
-| 'type_def $(name :: IdentifierName)':
+| 'c_type $(name :: IdentifierName)':
     let '$_ ... $name_tail' = '$name'
     let ty_name = Syntax.make_id(name_tail +& "*")
     '«
@@ -33,7 +34,7 @@ defn.macro
        annot.macro '$name':
          'satisfying(fun (x): x is_a_ffi2 $ty_name)'
      »'
-| 'type_def $(name :: IdentifierName) $(args :: MaybeArgs):
+| 'c_type $(name :: IdentifierName) $(args :: MaybeArgs):
      $(group_option_sequence
        | '~extends: $(t :: type_meta.Parsed)'
        | '~rhombus_to_c: $rhombus_to_c_body'
@@ -75,6 +76,17 @@ defn.macro
           if body
           | [kw, expr_meta.pack_expr('block: $body')]
           | []
+        let (c_to_rhombus_body, ann):
+          match c_to_rhombus_body
+          | '$(fun_id && (bound_as expr_meta.space: 'fun'))
+               $(args && '($_)')
+               $(ann_op && ((bound_as annot_meta.space: '::') || (bound_as annot_meta.space: ':~'))) $ann_seq ...:
+                 $(body :: Block)':
+              let '$(ann :: annot_meta.Parsed)' = '$ann_seq ...'
+              values('$fun_id $args $ann_op $ann $body',
+                     ann)
+          | ~else:
+              values(c_to_rhombus_body, 'Any')
         '«
            $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                    ty_name_or_app,
@@ -85,13 +97,14 @@ defn.macro
                                    & option('~#{c->racket}', c_to_rhombus_body)]))
            type.macro '$name $args_pat':
              ~all_stx: stx
-             type_meta.pack_type('$ty_name_or_app_form').relocate_span([stx])
+             type_meta.pack_type('$ty_name_or_app_form', '$ann').relocate_span([stx])
          »'
-| 'type_def $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
+| 'c_type $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
     let ty_name = Syntax.make_id(to_string(name))
     let pack = (if type_meta.unpack_arrow(t)
                 | 'pack_arrow'
                 | 'pack_type')
+    let ann = type_meta.unpack_annot(t)
     '«
        $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                ty_name,
@@ -99,7 +112,15 @@ defn.macro
                                '~tag', '#false']))
        type.macro '$name':
          ~all_stx: stx
-         type_meta . $pack('$ty_name').relocate(stx)
+         type_meta . $pack('$ty_name', '$ann').relocate(stx)
        annot.macro '$name':
          'satisfying(fun (x): x is_a_ffi2 $ty_name)'
      »'
+
+type.macro 'none_t':
+  ~weaker_than: ~other
+  error("should not get here")
+
+annot.macro 'c_type $(t :: type_meta.AfterPrefixParsed('none_t')) $()':
+  values(type_meta.unpack_annot(t),
+         '$t.tail ...')

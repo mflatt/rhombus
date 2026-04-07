@@ -11,12 +11,18 @@ export:
   struct
   union
 
+module foreign:
+  export:
+    c_struct
+    c_union
+
 meta fun parse_compound(kind, name, [field_id, ...], [field_t, ...]):
   let '$_ ... $name_tail' = '$name'
   let ty_name = Syntax.make_id(to_string(name_tail))
   let ptr_pred_id = Syntax.make_id(name_tail +& "*?")
   let [field_acc, ...]: [Syntax.make_id(ty_name +& "-" +& field_id, field_id), ...]
   let [field_mut, ...]: [Syntax.make_id("set-" +& ty_name +& "-" +& field_id +& "!", field_id), ...]
+  let [field_ann, ...]: [type_meta.unpack_annot(field_t), ...]
   let pack = (match kind
               | #'struct: 'pack_struct'
               | #'union: 'pack_union')
@@ -34,13 +40,14 @@ meta fun parse_compound(kind, name, [field_id, ...], [field_t, ...]):
        ~all_stx: stx
        type_meta . $pack('$ty_name',
                          '[$ty_name,
-                           [$field_id, ...],
-                           $name]')
+                           [$field_id, ...]]',
+                         '$name')
          .relocate(stx)
      annot.macro '$ty_name': 'satisfying($ptr_pred_id)'
      veneer $name(this :: $ty_name):
+       allow_dynamic
        property
-       | $field_id:
+       | $field_id :~ $field_ann:
            $field_acc(this)
        | $field_id := val:
            $field_mut(this, val)
@@ -48,12 +55,12 @@ meta fun parse_compound(kind, name, [field_id, ...], [field_t, ...]):
        export fun is_a(v): $ptr_pred_id(v)
    »'
 
-defn.macro 'struct $(name :: IdentifierName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
-                                             ...)':
+defn.macro 'c_struct $(name :: IdentifierName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
+                                               ...)':
   parse_compound(#'struct, name, [field_id, ...], [field_t, ...])
 
-defn.macro 'union $(name :: IdentifierName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
-                                            ...)':
+defn.macro 'c_union $(name :: IdentifierName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
+                                              ...)':
   parse_compound(#'union, name, [field_id, ...], [field_t, ...])
 
 meta syntax_class MaybeName
@@ -72,7 +79,8 @@ meta fun parse_compound_type(kind, name, [field_id, ...], [field_t, ...]):
                         $tag_name, ...,
                         [$field_id,
                          $(type_meta.unpack_type(field_t))],
-                        ...]')
+                        ...]',
+                      'PointerOf(Any, #false)')
 
 type.macro 'struct $(name :: MaybeName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
                                         ...)':

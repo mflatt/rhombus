@@ -1,7 +1,7 @@
 #lang rhombus/static/and_meta
 import:
   "base_type.rhm"!string open
-  "define_type.rhm" open
+  "define_type.rhm"!foreign open
 
 export:
   string_t

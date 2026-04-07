@@ -7,10 +7,11 @@ import:
     expose:
       #{define-ffi2-procedure} as def_ffi2_proc
 
-export:
-  c_def
-  c_fun
-  c_linker
+module foreign:
+  export:
+    c_def
+    c_fun
+    c_linker
 
 meta fun build_c_fun(stx,
                      who,
@@ -39,7 +40,13 @@ meta fun build_c_fun(stx,
                              | ['~wrap', expr_meta.pack_expr('check_wrap_proc(#' $who, block: $wrap_block)')]
                              | [])])
   if !ret
-  | build_defn(id)
+  | let defn = build_defn(id)
+    let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)
+    let (_, si) = annot_meta.unpack_predicate(ann)
+    '«
+       $defn
+       statinfo.macro '$id': '$si'
+     »'
   | let tmp_id = Syntax.make_temp_id(id)
     let [arg, ...]: extract_temp_arg_ids(type_meta.unpack_type(t))
     match ret

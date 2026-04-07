@@ -11,46 +11,49 @@ meta:
       id.replace_scopes('here')
 
 decl.macro 'bounce:
-              $id
+              $id $ann
               ...':
   '«export type.macro '$id':
       ~all_stx: stx
-      type_meta.pack_type(ffi2.pack('$id')).relocate(stx)
+      type_meta.pack_type(ffi2.pack('$id'), '$ann').relocate(stx)
     ...
     export annot.macro '$id':
-      'satisfying(fun (x): x is_a_ffi2 $(ffi2.pack('$id')))'
+      let '$('$')(a :: annot_meta.Parsed)' = '$ann'
+      let (_, si) = annot_meta.unpack_predicate(a)
+      annot_meta.pack_predicate('fun (x): x is_a_ffi2 $(ffi2.pack('$id'))',
+                                si)
     ...»'
 
 bounce:
-  int8_t
-  uint8_t
-  byte_t
-  int16_t
-  uint16_t
-  int32_t
-  uint32_t
-  int64_t
-  uint64_t
-  short_t
-  ushort_t
-  int_t
-  uint_t
-  long_t
-  ulong_t
-  intptr_t
-  uintptr_t
-  size_t
-  ssize_t
-  float_t
-  double_t
-  intwchar_t
-  wchar_t
-  bool_t
-  boolint
-  racket_t
-  bytes_t
-  bytes_ptr_t
-  path_t
+  int8_t Int
+  uint8_t Int
+  byte_t Int
+  int16_t Int
+  uint16_t Int
+  int32_t Int
+  uint32_t Int
+  int64_t Int
+  uint64_t Int
+  short_t Int
+  ushort_t Int
+  int_t Int
+  uint_t Int
+  long_t Int
+  ulong_t Int
+  intptr_t Int
+  uintptr_t Int
+  size_t Int
+  ssize_t Int
+  float_t Flonum
+  double_t Flonum
+  intwchar_t Int
+  wchar_t Char
+  bool_t Boolean
+  boolint_t Boolean
+  racket_t Any
+  bytes_t Bytes
+  bytes_ptr_t Bytes
+  path_t Path
 
 export type.macro 'void_t':
   ~all_stx: stx
@@ -63,7 +66,7 @@ export type.macro 'ptr_t':
 module string:
   export type.macro 'mutable_string_t':
     ~all_stx: stx
-    type_meta.pack_type(ffi2.pack('string_t')).relocate(stx)
+    type_meta.pack_type(ffi2.pack('string_t'), 'String').relocate(stx)
 
 /*
   void_t*
