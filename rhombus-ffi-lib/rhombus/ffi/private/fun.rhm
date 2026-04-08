@@ -157,34 +157,36 @@ meta syntax_class MaybeAt:
 | '':
      field is_at = #false
 
-defn.macro
-| 'c_def $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed):
-     $(group_option_sequence
-       | '~lib: $lib_block'
-       | '~c_id: $(c_id :: Identifier)'
-       | '~fail: $(fail_expr :: Group)'
-       | '~wrap: $(wrap_expr :: Group)')':
-    ~op_stx: self
-    ~all_stx: stx
-    build_c_def(stx,
-                self,
-                at.is_at, id, t,
-                #false, lib_block,
-                c_id,
-                fail_expr,
-                wrap_expr,
-                #false, #false)
-| 'c_def $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed)':
-    ~op_stx: self
-    ~all_stx: stx
-    build_c_def(stx,
-                self,
-                at.is_at, id, t,
-                #false, #false,
-                #false,
-                #false,
-                #false,
-                #false, #false)
+meta fun parse_cdef(self, stx, lib = #false, default_fail_expr = #false):
+  match stx
+  | '$_ $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed):
+       $(group_option_sequence
+         | '~lib: $lib_block'
+         | '~c_id: $(c_id :: Identifier)'
+         | '~fail: $(fail_expr :: Group)'
+         | '~wrap: $(wrap_expr :: Group)')':
+      build_c_def(stx,
+                  self,
+                  at.is_at, id, t,
+                  lib, lib_block,
+                  c_id,
+                  fail_expr || default_fail_expr,
+                  wrap_expr,
+                  #false, #false)
+  | '$_ $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed)':
+      build_c_def(stx,
+                  self,
+                  at.is_at, id, t,
+                  lib, #false,
+                  #false,
+                  default_fail_expr,
+                  #false,
+                  #false, #false)
+
+defn.macro 'c_def $tail ...':
+  ~op_stx: self
+  ~all_stx: stx
+  parse_cdef(self, stx)
 
 meta syntax_class Header:
   description: "foreign-function definition"
@@ -196,38 +198,40 @@ meta syntax_class Header:
     field ret = #false
     field ret_is_checked = ann_op.is_checked
 
-defn.macro
-| 'c_fun $(header :: Header):
-     $(group_option_sequence
-       | '~lib: $lib_block'
-       | '~c_id: $(c_id :: Identifier)'
-       | '~fail: $(fail_expr :: Group)'
-       | '~wrap: $(wrap_expr :: Group)')
-     $body
-     ...':
-    ~op_stx: self
-    ~all_stx: stx
-    let t = parse_as_arrow(header.args, '$header.r_seq ...', '$body; ...')
-    build_c_def(stx,
-                self,
-                #false, header.id, t,
-                #false, lib_block,
-                c_id,
-                fail_expr,
-                wrap_expr,
-                header.ret, header.ret_is_checked)
-| 'c_fun $(header :: Header)':
-    ~op_stx: self
-    ~all_stx: stx
-    let t = parse_as_arrow(header.args, '$header.r_seq ...', '')
-    build_c_def(stx,
-                self,
-                #false, header.id, t,
-                #false, #false,
-                #false,
-                #false,
-                #false,
-                header.ret, header.ret_is_checked)
+meta fun parse_c_fun(self, stx, lib = #false, default_fail_expr = #false, default_wrap_expr = #false):
+  match stx
+  | '$_ $(header :: Header):
+       $(group_option_sequence
+         | '~lib: $lib_block'
+         | '~c_id: $(c_id :: Identifier)'
+         | '~fail: $(fail_expr :: Group)'
+         | '~wrap: $(wrap_expr :: Group)')
+       $body
+       ...':
+      let t = parse_as_arrow(header.args, '$header.r_seq ...', '$body; ...')
+      build_c_def(stx,
+                  self,
+                  #false, header.id, t,
+                  lib, lib_block,
+                  c_id,
+                  fail_expr || default_fail_expr,
+                  wrap_expr || default_wrap_expr,
+                  header.ret, header.ret_is_checked)
+  | '$_ $(header :: Header)':
+      let t = parse_as_arrow(header.args, '$header.r_seq ...', '')
+      build_c_def(stx,
+                  self,
+                  #false, header.id, t,
+                  lib, #false,
+                  #false,
+                  default_fail_expr,
+                  default_wrap_expr,
+                  header.ret, header.ret_is_checked)
+
+defn.macro 'c_fun $tail ...':
+  ~op_stx: self
+  ~all_stx: stx
+  parse_c_fun(self, stx)
 
 defn.macro 'c_linker $(name :: Name):
                $(group_option_sequence
@@ -249,65 +253,19 @@ defn.macro 'c_linker $(name :: Name):
        | 'def default_wrap = ($default_wrap_expr)
           check_wrap_proc(#' $self, default_wrap)'
        | '')
-     defn.macro
-     | 'c_def $('$')(at :: MaybeAt) $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed):
-          $('$')(group_option_sequence
-                 | '~lib: $('$')lib_block'
-                 | '~c_id: $('$')(c_id :: Identifier)'
-                 | '~fail: $('$')(fail_expr :: Group)'
-                 | '~wrap: $('$')(wrap_expr :: Group)')':
-         ~op_stx: self
-         ~all_stx: stx
-         build_c_def(stx,
-                     self,
-                     at.is_at, id, t,
-                     #false, lib_block,
-                     c_id,
-                     fail_expr,
-                     wrap_expr,
-                     #false, #false)
-     | 'c_def $('$')(at :: MaybeAt) $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
-         ~op_stx: self
-         ~all_stx: stx
-         build_c_def(stx,
-                     self,
-                     at.is_at, id, t,
-                     #false, #false,
-                     #false,
-                     #false,
-                     #false,
-                     #false, #false)
-     defn.macro
-     | 'c_fun $('$')(header :: Header):
-          $('$')(group_option_sequence
-                 | '~c_id: $('$')(c_id :: Identifier)'
-                 | '~fail: $('$')(fail_expr :: Group)'
-                 | '~wrap: $('$')(wrap_expr :: Group)')
-          $('$')body
-          $('...')':
-         ~op_stx: self
-         ~all_stx: stx
-         let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '$('$')body $('...')')
-         build_c_def(stx,
-                     self,
-                     #false, header.id, t,
-                     'lib', #false,
-                     c_id,
-                     fail_expr || $(default_fail_expr && '«'default_fail'»'),
-                     wrap_expr || $(default_wrap_expr && '«'default_wrap'»'),
-                     header.ret, header.ret_is_checked)
-     | 'c_fun $('$')(header :: Header)':
-         ~op_stx: self
-         ~all_stx: stx
-         let t = parse_as_arrow(header.args, '$('$')header.r_seq $('...')', '')
-         build_c_def(stx,
-                     self,
-                     #false, header.id, t,
-                     'lib', #false,
-                     #false,
-                     $(default_fail_expr && '«'default_fail'»'),
-                     $(default_wrap_expr && '«'default_wrap'»'),
-                     header.ret, header.ret_is_checked)
+     defn.macro 'c_def $('$')tail $('...')':
+       ~op_stx: self
+       ~all_stx: stx
+       parse_cdef(self, stx,
+                  'lib',
+                  $(default_fail_expr && '«'default_fail'»'))
+     defn.macro 'c_fun $('$')tail $('...')':
+       ~op_stx: self
+       ~all_stx: stx
+       parse_c_fun(self, stx,
+                   'lib',
+                   $(default_fail_expr && '«'default_fail'»'),
+                   $(default_wrap_expr && '«'default_wrap'»'))
      namespace $name:
        export:
          rename:
