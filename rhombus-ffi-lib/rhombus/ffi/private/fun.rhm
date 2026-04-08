@@ -23,10 +23,10 @@ meta fun build_c_fun(stx,
                      id, t,
                      lib_handle, lib_block,
                      c_id,
-                     fail_block,
-                     wrap_block,
+                     fail_expr,
+                     wrap_expr,
                      ret, ret_is_checked):
-  fun build_defn(f_id):
+  fun build_defn(f_id, direct_wrap):
     defn_meta.pack_s_exp(['def_ffi2_proc',
                           f_id,
                           type_meta.s_exp(type_meta.unpack_type(t)),
@@ -34,32 +34,60 @@ meta fun build_c_fun(stx,
                           c_id || id,
                           '~lib',
                           lib_handle || expr_meta.pack_expr('extract_lib(#' $who, block: $lib_block)'),
-                          & (if fail_block
-                             | ['~fail', expr_meta.pack_expr('check_fail_proc(#' $who, block: $fail_block)')]
+                          & (if fail_expr
+                             | ['~fail', expr_meta.pack_expr(
+                                           if direct_wrap
+                                           | 'check_fail_proc(#' $who, block: fail_handler)'
+                                           | 'fun (x): #false'
+                                         )]
                              | []),
-                          & (if wrap_block
-                             | ['~wrap', expr_meta.pack_expr('check_wrap_proc(#' $who, block: $wrap_block)')]
+                          & (if wrap_expr && direct_wrap
+                             | ['~wrap', expr_meta.pack_expr('check_wrap_proc(#' $who, block: $wrap_expr)')]
                              | [])])
   if !ret
-  | let defn = build_defn(id)
-    let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)
+  | let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)
     let (_, si) = annot_meta.unpack_predicate(ann)
-    '«
-       $defn
-       statinfo.macro '$id': '$si'
-     »'
+    if !fail_expr && !wrap_expr
+    | let defn = build_defn(id, #false)
+      '«
+         $defn
+         statinfo.macro '$id': '$si'
+       »'
+    | let tmp_id = Syntax.make_temp_id(id)
+      let ok_id: if wrap_expr
+                 | (if fail_expr | Syntax.make_temp_id(id) | tmp_id)
+                 | id
+      let defn = build_defn(tmp_id, #false)
+      '«
+         $defn
+         statinfo.macro '$tmp_id': $(if fail_expr
+                                     | '«'(($statinfo_meta.maybe_key, $(statinfo_meta.pack(si))))'»'
+                                     | '«'$si'»')
+         $(if fail_expr
+           | 'def fail_handler = ($fail_expr)
+              check_fail_proc(#' $who, block: fail_handler)
+              show_statinfo(: $fail_expr, fail_handler)
+              def $ok_id:
+                $tmp_id || fail_handler(#' $(c_id || id))'
+           | '')
+         $(if wrap_expr
+           | 'def wrapper = ($wrap_expr)
+              check_wrap_proc(#' $who, wrapper)
+              def $id: wrapper($ok_id)'
+           | '')               
+       »'
   | let tmp_id = Syntax.make_temp_id(id)
     let [arg, ...]: extract_temp_arg_ids(type_meta.unpack_type(t))
     match ret
     | '$(bound_as expr_meta.space: 'values')($(ann :: annot_meta.Parsed), ...)':
         '
-          $(build_defn(tmp_id))
+          $(build_defn(tmp_id, #true))
           fun $id($arg, ...) $(if ret_is_checked | '::' | ':~') values($ann, ...):
             $tmp_id($arg, ...)
         '
     | '$(ann :: annot_meta.Parsed)':
         '
-          $(build_defn(tmp_id))
+          $(build_defn(tmp_id, #true))
           fun $id($arg, ...) $(if ret_is_checked | '::' | ':~') $ann:
             $tmp_id($arg, ...)
         '
@@ -69,8 +97,8 @@ meta fun build_c_def(stx,
                      is_at, id, t,
                      lib_handle, lib_block,
                      c_id,
-                     fail_block,
-                     wrap_block,
+                     fail_expr,
+                     wrap_expr,
                      ret, ret_is_checked):
   unless lib_handle || lib_block
   | syntax_meta.error("missing a `~lib` clause", stx)
@@ -81,8 +109,8 @@ meta fun build_c_def(stx,
                   id, t,
                   lib_handle, lib_block,
                   c_id,
-                  fail_block,
-                  wrap_block,
+                  fail_expr,
+                  wrap_expr,
                   ret, ret_is_checked)
   | ~else:
       let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)
@@ -90,20 +118,20 @@ meta fun build_c_def(stx,
       '«
           def $id = dynamic(
             block:
-              $(if fail_block
-                | 'let fail: check_fail_proc(#' $who, block: $fail_block)'
+              $(if fail_expr
+                | 'let fail: check_fail_proc(#' $who, block: $fail_expr)'
                 | '')
-              $(if wrap_block
-                | 'let wrap: check_wrap_proc(#' $who, block: $wrap_block)'
+              $(if wrap_expr
+                | 'let wrap: check_wrap_proc(#' $who, block: $wrap_expr)'
                 | '')
               let p:
                 ffi2_lib_ref($(lib_handle || expr_meta.pack_expr('extract_lib(#' $who, block: $lib_block)')),
                              $(to_string(c_id || id).utf8_bytes()),
-                             $(each if fail_block
+                             $(each if fail_expr
                                | ['~fail', 'fun (): #false']
                                | []),
                              ...)
-              $(if fail_block
+              $(if fail_expr
                 | 'guard p | fail(#' $(c_id || id))'
                 | '')
               let v:
@@ -115,7 +143,7 @@ meta fun build_c_def(stx,
                   | expr_meta.pack_s_exp(['ffi2_ref',
                                           'p',
                                           type_meta.s_exp(type_meta.unpack_type(t))]))
-              $(if wrap_block
+              $(if wrap_expr
                 | 'wrap(v)'
                 | 'v')
           )
@@ -135,8 +163,8 @@ defn.macro
      $(group_option_sequence
        | '~lib: $lib_block'
        | '~c_id: $(c_id :: Identifier)'
-       | '~fail: $fail_block'
-       | '~wrap: $wrap_block')':
+       | '~fail: $(fail_expr :: Group)'
+       | '~wrap: $(wrap_expr :: Group)')':
     ~op_stx: self
     ~all_stx: stx
     build_c_def(stx,
@@ -144,8 +172,8 @@ defn.macro
                 at.is_at, id, t,
                 #false, lib_block,
                 c_id,
-                fail_block,
-                wrap_block,
+                fail_expr,
+                wrap_expr,
                 #false, #false)
 | 'c_def $(at :: MaybeAt) $(id :: Identifier) $(ann_op :: annot_meta.BindOp) $(t :: type_meta.Parsed)':
     ~op_stx: self
@@ -174,8 +202,8 @@ defn.macro
      $(group_option_sequence
        | '~lib: $lib_block'
        | '~c_id: $(c_id :: Identifier)'
-       | '~fail: $fail_block'
-       | '~wrap: $wrap_block')
+       | '~fail: $(fail_expr :: Group)'
+       | '~wrap: $(wrap_expr :: Group)')
      $body
      ...':
     ~op_stx: self
@@ -186,8 +214,8 @@ defn.macro
                 #false, header.id, t,
                 #false, lib_block,
                 c_id,
-                fail_block,
-                wrap_block,
+                fail_expr,
+                wrap_expr,
                 header.ret, header.ret_is_checked)
 | 'c_fun $(header :: Header)':
     ~op_stx: self
@@ -206,27 +234,29 @@ defn.macro 'c_linker $(name :: Name):
                $(group_option_sequence
                  | '~lib: $lib_block'
                  | '~c_id: $(c_id :: Identifier)'
-                 | '~default_fail: $default_fail_block'
-                 | '~default_wrap: $default_wrap_block')':
+                 | '~default_fail: $(default_fail_expr :: Group)'
+                 | '~default_wrap: $(default_wrap_expr :: Group)')':
   ~op_stx: self
   ~all_stx: stx
   unless lib_block
   | syntax_meta.error("missing a `~lib` clause", stx)
   '«
      def lib = extract_lib(#' $self, block: $lib_block)
-     $(if default_fail_block
-       | 'def default_fail = check_fail_proc(#' $self, block: $default_fail_block)'
+     $(if default_fail_expr
+       | 'def default_fail = ($default_fail_expr)
+          check_fail_proc(#' $self, default_fail)'
        | '')
-     $(if default_wrap_block
-       | 'def default_wrap = check_wrap_proc(#' $self, $default_wrap_block)'
+     $(if default_wrap_expr
+       | 'def default_wrap = ($default_wrap_expr)
+          check_wrap_proc(#' $self, default_wrap)'
        | '')
      defn.macro
      | 'c_def $('$')(at :: MaybeAt) $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed):
           $('$')(group_option_sequence
                  | '~lib: $('$')lib_block'
                  | '~c_id: $('$')(c_id :: Identifier)'
-                 | '~fail: $('$')fail_block'
-                 | '~wrap: $('$')wrap_block')':
+                 | '~fail: $('$')(fail_expr :: Group)'
+                 | '~wrap: $('$')(wrap_expr :: Group)')':
          ~op_stx: self
          ~all_stx: stx
          build_c_def(stx,
@@ -234,8 +264,8 @@ defn.macro 'c_linker $(name :: Name):
                      at.is_at, id, t,
                      #false, lib_block,
                      c_id,
-                     fail_block,
-                     wrap_block,
+                     fail_expr,
+                     wrap_expr,
                      #false, #false)
      | 'c_def $('$')(at :: MaybeAt) $('$')(id :: Identifier) $('$')(t :: type_meta.Parsed)':
          ~op_stx: self
@@ -252,8 +282,8 @@ defn.macro 'c_linker $(name :: Name):
      | 'c_fun $('$')(header :: Header):
           $('$')(group_option_sequence
                  | '~c_id: $('$')(c_id :: Identifier)'
-                 | '~fail: $('$')fail_block'
-                 | '~wrap: $('$')wrap_block')
+                 | '~fail: $('$')(fail_expr :: Group)'
+                 | '~wrap: $('$')(wrap_expr :: Group)')
           $('$')body
           $('...')':
          ~op_stx: self
@@ -264,8 +294,8 @@ defn.macro 'c_linker $(name :: Name):
                      #false, header.id, t,
                      'lib', #false,
                      c_id,
-                     fail_block || $(default_fail_block && '«'default_fail'»'),
-                     wrap_block || $(default_wrap_block && '«'default_wrap'»'),
+                     fail_expr || $(default_fail_expr && '«'default_fail'»'),
+                     wrap_expr || $(default_wrap_expr && '«'default_wrap'»'),
                      header.ret, header.ret_is_checked)
      | 'c_fun $('$')(header :: Header)':
          ~op_stx: self
@@ -276,8 +306,8 @@ defn.macro 'c_linker $(name :: Name):
                      #false, header.id, t,
                      'lib', #false,
                      #false,
-                     $(default_fail_block && '«'default_fail'»'),
-                     $(default_wrap_block && '«'default_wrap'»'),
+                     $(default_fail_expr && '«'default_fail'»'),
+                     $(default_wrap_expr && '«'default_wrap'»'),
                      header.ret, header.ret_is_checked)
      namespace $name:
        export:
@@ -310,6 +340,10 @@ fun check_wrap_proc(who, proc):
                  error.annot("Function.of_arity(1)"),
                  error.val(proc))
 
+fun make_not_available(name):
+  fun (arg, ...):
+    error(~who: name, "not available")
+
 meta fun extract_temp_arg_ids(arrow_t):
   let '[arrow, $a, ...]' = arrow_t
   let [arg, ..., result]:
@@ -332,3 +366,8 @@ meta fun extract_temp_arg_ids(arrow_t):
                  | ~else: #false)
       arg
   [Syntax.make_temp_id(arg), ...]
+
+expr.macro 'show_statinfo($x, $(e :: expr_meta.Parsed))':
+  showln(x, e, statinfo_meta.gather(e))
+  '#void'
+

@@ -288,7 +288,9 @@
                                     [_ (raise-unchecked-disallowed #'ann-op.name c)])))]
                         #:with (arg-parsed::binding-form ...) #'(c-parsed.binding ...)
                         #:with (arg-impl::binding-impl ...) #'((arg-parsed.infoer-id () arg-parsed.data) ...)
-                        (values #'((#%values (c-parsed.static-infos ...)))
+                        (values (if (= 1 (length (attribute c-parsed)))
+                                    (car (attribute c-parsed.static-infos))
+                                    #'((#%values (c-parsed.static-infos ...))))
                                 (converter
                                  #`(let ()
                                      #,@(for/list ([arg-impl-info (in-list (syntax->list #'(arg-impl.info ...)))])
