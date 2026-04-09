@@ -1,0 +1,233 @@
+#lang rhombus/scribble/manual
+@(import:
+    "common.rhm" open)
+
+@title(~tag: "pointer"){Foreign Pointers}
+
+A @deftech{pointer} object encapsulates a memory address and a
+potentially empty sequence of symbolic @tech{tags}. A pointer object
+may refer to an address that under the control of Racket's memory
+manager and garbage collection, or it may refer to an address is
+managed externally.
+
+The base type for pointers is @rhombus_t(ptr_t) (equivalent to
+@rhombus_t(void_t*)), and new pointer types can be created via
+@rhombus(foreign.type) with either a name for an opaque content type, an
+existing pointer type, a @rhombus_t(struct) type or a @rhombus_t(union)
+type.
+
+A pointer's @deftech{tags} enable sanity checking that the right kind of
+pointer is provided to an operation. If an operation expects a pointer
+with a certain sequence of tags, it accepts a pointer with additional
+tags added to the end, so additional tags form a @deftech{pointer
+ subtype}. A @rhombus_t(ptr_t) representation has no tags, which means
+that a C conversion to Rhombus via @rhombus_t(ptr_t) is not accepted by
+any context that expects some tag, whereas a pointer with any tags is
+accepted as a @rhombus_t(ptr_t) representation to translate to C.
+Whether a pointer object represents an address managed by Rhombus's
+garbage collector is independent of its tags.
+
+@doc(
+  ~literal:
+    gcable
+  type.macro '$type *'
+  type.macro '$type /gcable'
+){
+
+ The @rhombus_t(*) postfix type operator describes a pointer type that
+ is tagged with the name of @rhombus_t(type) with a @litchar{*} suffix.
+ If @rhombus_t(type) is a pointer type, then its ``name'' for this
+ purpose is the tag used for its pointers. Otherwise, it is the name as
+ defined via @rhombus(foreign.type).
+
+ The @rhombus_t(/gcable) type operator (more precisely, a @rhombus(/)
+ operator that expects a subsequent literal @rhombus_t(gcable) always)
+ requires that the argument @rhombus(type) is a pointer type, and it
+ describes a type that is the same, but that represents an address within
+ memory that is managed by Rhombus's garbage collector. The Rhombus-to-C
+ conversion of a @rhombus_t(/gcable) pointer is no different that for the
+ original pointer type (i.e., it is not required to refer to a
+ garbage-collectable address), but it affects the handling of a C address
+ representation to a Rhombus representation.
+
+}
+
+@//||{
+
+@defform[(ffi2-malloc maybe-mode
+                      maybe-type
+                      n-expr maybe-bytes
+                      maybe-as-type)
+         #:grammar ([maybe-mode #:gcable
+                                #:gcable-traced
+                                #:gcable-immobile
+                                #:gcable-traced-immobile
+                                #:manual
+                                ϵ]
+                    [maybe-type type
+                                ϵ]
+                    [maybe-bytes #:bytes
+                                 ϵ]
+                    [maybe-as-type (code:line #:as as-type)
+                                   ϵ])]{
+
+Allocates memory.
+
+The amount of allocated memory depends on @racket[n-expr]. If no type
+is provided as @racket[maybe-type], or if @racket[maybe-bytes] is
+@racket[#:bytes], then the allocated memory spans as many bytes as the
+value of @racket[n-expr]. Otherwise, the allocated memory's size is
+the result of @racket[(* n-expr (ffi2-sizeof maybe-type))].
+
+If @racket[maybe-as] is specified, then the result is cast to
+@racket[as-type] in the sense of @racket[ffi2-cast]. Otherwise, the
+result is a @tech{pointer} object encapsulating the address of
+allocated memory. If @racket[maybe-type] is a @racket[struct],
+@racket[union], or size @racket[array] type (and @racket[maybe-as] is
+not specified), the result is a pointer object using the
+representation of @racket[maybe-type]. Otherwise, the result is a
+pointer object using the representation of @racket[void_t*].
+
+By default, allocation uses @racket[#:gcable] mode, but a
+@racket[maybe-mode] specificaiton can pick any of the supported modes:
+
+@itemlist[
+
+ @item{@racket[#:gcable]: Allocates in Racket's garbage-collected
+       space. The allocated memory becomes eligible for garbage
+       collection when it is not referenced by any reachable pointer
+       object or @tech{traced} allocated memory. Even before
+       collection, the meory manager may relocate the object, but
+       garbage collection or relocation cannot happen with a
+       foreign-procedure call is active.}
+
+ @item{@racket[#:gcable-immobile]: Like @racket[#:gcable], but the
+       allocated memory will not be relocated by a different address
+       by the memory manager as long as it is not collected.}
+
+ @item{@racket[#:gcable-traced]: Like @racket[#:gcable], but the
+       allocated memory is @deftech{traced}, meaning that it can
+       itself contain references to other allocated memory. The
+       references are updated by the memory manager if it moved the
+       referenced objects.}
+
+ @item{@racket[#:gcable-traced-immobile]: Like
+       @racket[#:gcable-traced], but the allocated memory will not be
+       relocated by a different address by the memory manager as long
+       as it is not collected.}
+
+ @item{@racket[#:gcable]: Allocates outside of Racket's
+       garbage-collected space. The allocated memory is never
+       relocated by the garbage collection, and it must be freed
+       explicitly with @racket[ffi2-free].}
+
+]
+
+}
+
+@defproc[(ffi2-free [ptr void_t*?]) void?]{
+
+Deallocates memory that was allocated with @racket[ffi2-malloc] in
+@racket[#:manual] mode.
+
+}
+
+@defform[(ffi2-ref ptr-expr type maybe-offset)
+         #:grammar ([maybe-offset offset-expr
+                                  (code:line offset-expr #:bytes)
+                                  ϵ])]{
+
+}
+
+@defform[(ffi2-set! ptr-expr type maybe-offset val-expr)
+         #:grammar ([maybe-offset offset-expr
+                                  (code:line offset-expr #:bytes)
+                                  ϵ])]{
+
+}
+
+@defform[(ffi2-cast expr option ...)
+         #:grammar ([option (code:line #:from from-type)
+                            (code:line #:to to-type)
+                            (code:line #:offset maybe-type n-expr)]
+                    [maybe-type type
+                                ϵ])]{
+
+Converts the Racket representation produced by @racket[expr] from one
+foreign type's representation to another. If @racket[from-type] or
+@racket[to-type] is not specified, each defaults to @racket[void_t*].
+
+If the @racket[#:offset] option is provided, the resulting pointer is
+shifted to represent an address that is @racket[_n] bytes later, where
+@racket[_n] is the result of @racket[n-expr] multiplied by
+@racket[(ffi2-sizeof maybe-type)] or by @racket[1] if
+@racket[maybe-type] is empty.
+
+}
+
+@defform*[[(ffi2-add ptr-expr n-expr)
+           (ffi2-add ptr-expr type n-expr)]]{
+
+A shorthand for @racket[(ffi2-cast ptr-expr #:offset n-expr)]
+or @racket[(ffi2-cast ptr-expr #:offset type n-expr #:to (array type *))].
+
+}
+
+@deftogether[(
+@defproc[(ffi2-memcpy [dest ptr_t?]
+                      [src ptr_t?]
+                      [len exact-nonnegative-integer?]
+                      [#:dest-offset dest-offset exact-nonnegative-integer? 0]
+                      [#:src-offset src-offset exact-nonnegative-integer? 0])
+         void?]
+@defproc[(ffi2-memmove [dest ptr_t?]
+                       [src ptr_t?]
+                       [len exact-nonnegative-integer?]
+                       [#:dest-offset dest-offset exact-nonnegative-integer? 0]
+                       [#:src-offset src-offset exact-nonnegative-integer? 0])
+         void?]
+@defproc[(ffi2-memset [dest ptr_t?]
+                      [byte byte_t?]
+                      [len exact-nonnegative-integer?]
+                      [#:dest-offset dest-offset exact-nonnegative-integer? 0])
+         void?]
+)]{
+
+The @racket[ffi2-memcpy] and @racket[ffi2-memmove] functions copy
+@racket[len] bytes from the address represented by @racket[(ffi2-add
+src src-offset)] to the address represented by @racket[(ffi2-add dest
+dest-offset)]. In the case of @racket[ffi2-memcpy], the source and
+destination regions must not overlap.
+
+The @racket[ffi2-memcpy] function sets @racket[len] bytes at the
+address represented by @racket[(ffi2-add dest dest-offset)] so that
+each byte's value is @racket[byte].
+
+}
+
+
+@deftogether[(
+@defproc[(ptr_t->uintptr [ptr ptr_t?]) exact-nonnegative-integer?]
+@defproc[(uintptr->ptr_t [int exact-nonnegative-integer?]) ptr_t?]
+)]{
+
+Conversions between addresses represented as pointers and addresses as
+represented as integers.
+
+Beware that the integer form of an address managed by Racket's garbage
+collector can become immediately invalid, unless an object at the
+address was allocated as immobile.
+
+}
+
+@deftogether[(
+@defproc[(ptr_t->cpointer [ptr ptr_t?]) cpointer?]
+@defproc[(cpointer->ptr_t [cptr cpointer?]) ptr_t?]
+)]{
+
+Conversions between @racketmodname[ffi2] pointer representations
+and @racketmodname[ffi/unsafe] pointer representations.
+
+}
+
+}||

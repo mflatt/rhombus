@@ -56,6 +56,8 @@ defn.macro
            type.macro '$name':
              ~all_stx: stx
              type_meta.pack_opaque('$ty_name').relocate(stx)
+           annot.macro '$name':
+             'satisfying(fun (x): x is_a_ffi2 $ty_name)'
          »'
     | ~else:
         unless t
@@ -98,6 +100,10 @@ defn.macro
            type.macro '$name $args_pat':
              ~all_stx: stx
              type_meta. $(pack_type)('$ty_name_or_app_form', '$ann').relocate_span([stx])
+           $(if !args.args
+             | '«annot.macro '$name':
+                   'satisfying(fun (x): x is_a_ffi2 $ty_name)'»'
+             | '')
          »'
 | 'c_type $(name :: IdentifierName) = $(t :: type_meta.Parsed)':
     let ty_name = Syntax.make_id(to_string(name))

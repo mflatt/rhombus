@@ -1,0 +1,229 @@
+#lang rhombus/scribble/manual
+@(import:
+    "common.rhm" open)
+
+@(def ffi_eval = make_rhombus_eval())
+@examples(
+  ~eval: ffi_eval
+  ~hidden:
+    import ffi open
+)
+
+@title(~tag: "ffi-define-type"){Defining Foreign Types}
+
+@doc(
+  ~literal:
+    =
+  ~nonterminal:
+    arg_id: block id
+  defn.macro 'foreign.type $id'
+  defn.macro 'foreign.type $id = $parent_type'
+  defn.macro 'foreign.type $id:
+                ~extends: $parent_type'
+  defn.macro 'foreign.type $id:
+                $option
+                ...'
+  defn.macro 'foreign.type $id($arg_id, ...):
+                $option
+                ...'
+  grammar option
+  | ~extends: $parent_type
+  | ~rhombus_to_c: $rhombus_to_c_body; ...
+  | ~predicate: $predicate_body; ...
+  | ~release: $release_body; ...
+  | ~c_to_rhombus: $c_to_rhombus_body
+){
+
+ Defines a type @rhombus_t(id) or a type constructor @rhombus_t(id).
+ When not defining a type constructor, @rhombus_t(id) is also defined as
+ an annotation that recognizes Rhombus representations of the type.
+
+ When @rhombus(id) is provided by itself, then @rhombus(id) represents
+ an @deftech{opaque type} whose C representations is unspecified. An
+ opaque type is useful only with the @rhombus_t(*) type operator to
+ create a pointer type that is @tech{tag}ged using the name @rhombus(id)
+ with a @litchar{*} suffix.
+
+ When @rhombus(id = parent_type) is provided, then @rhombus(id) is
+ defined as an alias of @rhombus(parent_type). The tags as name of the
+ type for pointer-tagging purposes remains the same as for
+ @rhombus(parent_type).
+
+ When an @rhombus(options) block is provided, then @rhombus(~extends) is
+ required. If only @rhombus(~extends) is provided, then @rhombus(id)
+ represents an @tech{opaque type} that creates a @tech{pointer subtype}
+ relative to @rhombus(parent_type): a pointer representing a value of
+ @rhombus_t(id*) has the tags of @rhombus_t(parent_type*) with an
+ additional tag at the end formed by @rhombus(id) suffixed with
+ @litchar{*}.
+
+ When an @rhombus(options) block has multiple options, then it defines a
+ new type that has the same C-side representation as
+ @rhombus(parent_type), but its Rhombus-side representation can be
+ different as determined by other options as described below.
+
+ If @rhombus(foreign.type) is followed by @rhombus_t(id(arg_id, ...)),
+ then @rhombus_t(id) is defined as a type constructor that receives
+ expression arguments when applied in a type position, and the remainder
+ of the @rhombus(foreign.type) form can refer to the @rhombus(arg_id)s to
+ parameterize the definition over supplied values. Each use of
+ @rhombus(id) must be applied to any many expression arguments as
+ @rhombus(arg_id)s in the definition.
+
+ In all cases, the new type @rhombus(id) (or the type that it
+ constructs) has the same C representation as @rhombus(parent_type). The
+ Rhombus representation can be adjusted via @rhombus(~rhombus_to_c) and
+ @rhombus(~c_to_racket) options, which may need accompanying
+ @rhombus(~predicate) and @rhombus(~release) functions:
+
+@itemlist(
+
+ @item{@rhombus(~predicate): Provides a predicate function as the result
+  of the @rhombus(predicate_body) sequence. This predicate is used when
+  checks are enabled for Rhombus values to be converted to C for the type
+  @rhombus(id), but the predicate can be skipped on request. The predicate
+  determines whether a value is suitable as an argument to a function
+  provided by @rhombus(~rhombus_to_c). If @rhombus(predicate) is not
+  provided, then the predicate associated with @rhombus(parent_type) is
+  used.}
+
+ @item{@rhombus(~c_to_racket): Provides a conversion function toward
+  Rhombus as the result of the @rhombus(c_to_racket_body) sequence. This
+  converter is applied to a Rhombus representation of
+  @rhombus(parent_type) as extracted from a C representation. The result
+  of conversion should be a Rhombus representation for @rhombus(id). If
+  @rhombus(~c_to_racket) is not provided, conversion is the identity
+  function.}
+
+ @item{@rhombus(~release): Provides a function that finalizes conversion
+  from Rhombus to C as the result of @rhombus(release_body) sequence. The
+  function is applied to the result of @rhombus(parent_type)'s release
+  function after the C value is delivered (e.g., passed in a foreign
+  procedure call that has returned). For base pointer types, the release
+  function is @rhombus(Function.black_box), which is useful because it
+  keeps a pointer live if it is subject to garbage collection. A release
+  procedure could explicitly deallocate a pointer that was allocated by
+  the @rhombus(~racket_to_c) procedure, but a release function is not
+  called if control somehow escapes or the current thread is forcibly
+  terminated.}
+
+ @item{@rhombus(~racket_to_c): Provides a conversion function toward C
+  as the result of @rhombus(racket_to_c_body) sequence. This converter is
+  applied to a Rhombus value that is supplied for a @rhombus(id) type. The
+  result of conversion should be a Rhombus representation for
+  @rhombus(parent_type). If @rhombus(~racket_to_c) is not provided,
+  conversion is the identity function.}
+
+)
+
+@examples(
+ ~eval: ffi_eval
+ ~defn:
+   foreign.type percentage_t:
+     ~extends: double_t
+     ~predicate: fun (v): v is_a Real.in(0.0, 100.0)
+     ~rhombus_to_c: fun (v): v / 100.0
+     ~c_to_rhombus: fun (v): v * 100.0
+ ~repl:
+   def p = new double_t
+   mem *(double_t *)p := 0.5
+   mem *(percentage_t *)p
+   mem *(percentage_t *)p := 0.25
+   mem *(double_t *)p
+ ~defn:
+   foreign.type percentage_box_t:
+     ~extends: ptr_t
+     ~predicate: fun (bx): bx is_a Box && Box.value(bx) is_a percentage_t
+     ~rhombus_to_c: fun (bx :~ Box):
+                      let p = new ~immobile percentage_t
+                      mem p[0] := bx.value
+                      p
+     ~c_to_rhombus: fun (ptr):
+                      Box(mem *(percentage_t *)ptr)
+ ~repl:
+   def p = new ~traced ptr_t
+   mem *(percentage_box_t *)p := Box(50.5)
+   mem *(percentage_box_t *)p
+   mem *(double_t *)(mem *(ptr_t *)p)
+ ~defn:
+   foreign.type offset_double_t(delta):
+     ~extends: double_t
+     ~c_to_rhombus: fun (v): v + delta
+     ~rhombus_to_c: fun (v): v - delta
+   foreign.struct posn_t (x :: offset_double_t(1.0),
+                          y :: offset_double_t(2.0))
+ ~repl:
+   def p = new posn_t(10.0, 20.0)
+   mem (cast (double_t *)p)[0]
+   mem (cast (double_t *)p)[1]
+   p.x := 100.0
+   p.x
+   mem (cast (double_t *)p)[0]
+)
+
+}
+
+@//||{
+
+@defform*[[(define-ffi2-type-syntax name proc-expr)
+           (define-ffi2-type-syntax (name arg-id ...) body ...)]]{
+
+Like @racket[define-syntax], but binds @racket[name] as a macro that
+is expanded in type positions, instead of expression positions.
+
+}
+
+@defform[(ffi2-sizeof type)]{
+
+Returns the number of bytes used for the C representation of
+@racket[type].
+
+}
+
+@defform[(ffi2-offsetof type field-id)]{
+
+Returns the number of bytes in the C representation of @racket[type]
+that precede the field named @racket[field-id]. The @racket[type] must
+be have the C representation of a @racket[struct] or @racket[union]
+type; the result is always @racket[0] in the case of a @racket[union]
+type.
+
+}
+
+@defform[(ffi2-is-a? expr type)]{
+
+Returns @racket[#t] or @racket[#f] indicating whether the result of
+@racket[expr] is a Racket representation for @racket[type].
+
+}
+
+@defform[#:kind "ffi2 type/abi"
+         #:literals (else)
+         (system-type-case key
+           [(val ...) type/abi]
+           [else type/abi])
+         #:grammar ([key os
+                         os*                         
+                         arch
+                         word])]{
+
+Describes a type with a platform-specific representation or a
+platform-specific choice of procedure @tech{ABI}, enabling a compile-time
+(later than expand-time) choice. The symbol form of @racket[key]
+corresponds to a symbol argument to @racket[system-type], and each
+@racket[val] just be a potential result: an identifier for
+@racket[key]s other than @racket[word], or either @racket[32] or
+@racket[64] in the case of @racket[word].
+
+In the case of types, each right-hand side @racket[type/abi] must be a
+@deftech{scalar} type, such as @racket[int_t] or @racket[float_t]. A
+@racket[system-type-case] type is also scalar, since it selects among
+scalar types.
+
+}
+
+}||
+
+@close_eval(ffi_eval)
+
+
