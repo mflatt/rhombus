@@ -18,6 +18,18 @@ meta syntax_class MaybeArgs:
 | '':
     field args = #false
 
+meta syntax_class ExtendsRHS:
+  kind: ~group
+  fields: t
+| ': $(t :: type_meta.Parsed)'
+| '$(t :: type_meta.Parsed)'
+
+meta syntax_class TagRHS:
+  kind: ~group
+  fields: name
+| ': $(name :: Identifier)'
+| '$(name :: Identifier)'
+
 defn.macro
 | 'c_type $(name :: IdentifierName)':
     let '$_ ... $name_tail' = '$name'
@@ -35,24 +47,28 @@ defn.macro
      »'
 | 'c_type $(name :: IdentifierName) $(args :: MaybeArgs):
      $(group_option_sequence
-       | '~extends: $(t :: type_meta.Parsed)'
+       | '~extends $(ex :: ExtendsRHS)'
+       | '~tag $(tag :: TagRHS)'
        | '~rhombus_to_c: $rhombus_to_c_body'
        | '~predicate: $predicate_body'
        | '~release: $release_body'
        | '~c_to_rhombus: $c_to_rhombus_body')':
     ~all_stx: stx
     cond
-    | t && !args.args
+    | ex && !args.args
         && !rhombus_to_c_body && !predicate_body && !release_body && !predicate_body && !c_to_rhombus_body:
         let '$_ ... $name_tail' = '$name'
         let ty_name = Syntax.make_id(name_tail +& "*")
         '«
            $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                    ty_name,
-                                   type_meta.unpack_opaque_pointer(t)
+                                   type_meta.unpack_opaque_pointer(ex.t)
                                      || ['array',
-                                         type_meta.s_exp(type_meta.unpack_type(t)),
-                                         '#{*}']]))
+                                         type_meta.s_exp(type_meta.unpack_type(ex.t)),
+                                         '#{*}'],
+                                   & (if tag
+                                      | ['~tag', Syntax.make_id(tag.name +& "*")]
+                                      | [])]))
            type.macro '$name':
              ~all_stx: stx
              type_meta.pack_opaque('$ty_name').relocate(stx)
@@ -60,8 +76,10 @@ defn.macro
              'satisfying(fun (x): x is_a_ffi2 $ty_name)'
          »'
     | ~else:
-        unless t
+        unless ex.t
         | syntax_meta.error("missing an `~extends` clause", stx)
+        when tag
+        | syntax_meta.error("cannot combine `~tag` with other options", stx)
         let '$_ ... $name_tail' = '$name'
         let ty_name = Syntax.make_id(to_string(name_tail))
         let ty_name_or_app = (if args.args
@@ -88,11 +106,11 @@ defn.macro
                      ann)
           | ~else:
               values(c_to_rhombus_body, 'Any')
-        let pack_type = (if type_meta.unpack_pointer_type(#false, t) | 'pack_pointable' | 'pack_type')
+        let pack_type = (if type_meta.unpack_pointer_type(#false, ex.t) | 'pack_pointable' | 'pack_type')
         '«
            $(defn_meta.pack_s_exp(['#{define-ffi2-type}',
                                    ty_name_or_app,
-                                   type_meta.unpack_type(t),
+                                   type_meta.unpack_type(ex.t),
                                    & option('~#{racket->c}', rhombus_to_c_body),
                                    & option('~#{predicate}', predicate_body),
                                    & option('~#{release}', release_body),

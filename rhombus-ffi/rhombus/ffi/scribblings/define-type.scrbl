@@ -16,6 +16,7 @@
     =
   ~nonterminal:
     arg_id: block id
+    tag_id: block id
   defn.macro 'foreign.type $id'
   defn.macro 'foreign.type $id = $parent_type'
   defn.macro 'foreign.type $id:
@@ -28,10 +29,13 @@
                 ...'
   grammar option
   | ~extends: $parent_type
+  | ~extends $parent_type
   | ~rhombus_to_c: $rhombus_to_c_body; ...
   | ~predicate: $predicate_body; ...
   | ~release: $release_body; ...
   | ~c_to_rhombus: $c_to_rhombus_body
+  | ~tag: $tag_id
+  | ~tag $tag_id
 ){
 
  Defines a type @rhombus_t(id) or a type constructor @rhombus_t(id).
@@ -54,8 +58,10 @@
  represents an @tech{opaque type} that creates a @tech{pointer subtype}
  relative to @rhombus(parent_type): a pointer representing a value of
  @rhombus_t(id*) has the tags of @rhombus_t(parent_type*) with an
- additional tag at the end formed by @rhombus(id) suffixed with
- @litchar{*}.
+ additional tag at the end formed by @rhombus(tag_id) suffixed with
+ @litchar{*}. If @rhombus(tag_id) is not specified with a @rhombus(~tag)
+ option, then @rhombus(id) is used for @rhombus(tag_id). The
+ @rhombus(~tag) option is allowed only in this case.
 
  When an @rhombus(options) block has multiple options, then it defines a
  new type that has the same C-side representation as
@@ -163,66 +169,103 @@
 
 }
 
-@//||{
+@doc(
+  ~nonterminal:
+    macro_patterns: expr.macro ~defn
+  defn.macro 'type.macro $macro_patterns'
+){
 
-@defform*[[(define-ffi2-type-syntax name proc-expr)
-           (define-ffi2-type-syntax (name arg-id ...) body ...)]]{
-
-Like @racket[define-syntax], but binds @racket[name] as a macro that
-is expanded in type positions, instead of expression positions.
-
-}
-
-@defform[(ffi2-sizeof type)]{
-
-Returns the number of bytes used for the C representation of
-@racket[type].
+ Like @rhombus(expr.macro), but binds a macro that is expanded in type
+ positions, instead of expression positions.
 
 }
 
-@defform[(ffi2-offsetof type field-id)]{
+@doc(
+  ~meta
+  ~nonterminal:
+    macro_patterns: expr.macro ~defn    
+  syntax_class type_meta.Parsed
+  syntax_class type_meta.AfterPrefixParsed(op_name):
+    kind: ~group
+    fields:
+      group
+      [tail, ...]
+  syntax_class type_meta.AfterInfixParsed(op_name):
+    kind: ~group
+    fields:
+      group
+      [tail, ...]
+){
 
-Returns the number of bytes in the C representation of @racket[type]
-that precede the field named @racket[field-id]. The @racket[type] must
-be have the C representation of a @racket[struct] or @racket[union]
-type; the result is always @racket[0] in the case of a @racket[union]
-type.
-
-}
-
-@defform[(ffi2-is-a? expr type)]{
-
-Returns @racket[#t] or @racket[#f] indicating whether the result of
-@racket[expr] is a Racket representation for @racket[type].
-
-}
-
-@defform[#:kind "ffi2 type/abi"
-         #:literals (else)
-         (system-type-case key
-           [(val ...) type/abi]
-           [else type/abi])
-         #:grammar ([key os
-                         os*                         
-                         arch
-                         word])]{
-
-Describes a type with a platform-specific representation or a
-platform-specific choice of procedure @tech{ABI}, enabling a compile-time
-(later than expand-time) choice. The symbol form of @racket[key]
-corresponds to a symbol argument to @racket[system-type], and each
-@racket[val] just be a potential result: an identifier for
-@racket[key]s other than @racket[word], or either @racket[32] or
-@racket[64] in the case of @racket[word].
-
-In the case of types, each right-hand side @racket[type/abi] must be a
-@deftech{scalar} type, such as @racket[int_t] or @racket[float_t]. A
-@racket[system-type-case] type is also scalar, since it selects among
-scalar types.
+ Like @rhombus(expr.Parsed), @rhombus(expr.AfterPrefixParsed), and
+ @rhombus(expr.AfterInfixParsed), but for type positions.
 
 }
 
-}||
+@doc(
+  expr.macro 'sizeof($type)'
+){
+
+ Returns the number of bytes used for the C representation of
+ @rhombus(type).
+
+}
+
+@doc(
+  ~nonterminal:
+    field_id: block id
+  expr.macro 'offsetof($type, $field_id)'
+){
+
+ Returns the number of bytes in the C representation of @rhombus(type)
+ that precede the field named @rhombus(field_id). The @rhombus(type) must
+ be have the C representation of a @rhombus(struct) or @rhombus(union)
+ type; the result is always @rhombus(0) in the case of a @rhombus(union)
+ type.
+
+}
+
+@doc(
+  annot.macro 'foreign.type $type'
+){
+
+ Satisfied by values that are valid Racket representations of @rhombus(type).
+
+ A type name typically doubles as an annotation itself, but
+ @rhombus(foreign.type, ~annot) can be used with more complex type forms,
+ such as @rhombus(ptr_t*).
+
+@examples(
+  ~eval: ffi_eval
+  ~repl:
+    def p = new double_t
+    p is_a double_t
+    p is_a foreign.type double_t*
+)
+
+}
+
+@doc(
+  type.macro 'system_case $key_id
+              | $vals: $type
+              | ~else: $type'
+){
+
+ Describes a type with a platform-specific representation or a
+ platform-specific choice of procedure @tech{ABI}, enabling a
+ compile-time (later than expand-time) choice. The symbol form of
+ @rhombus(key_id) corresponds to a method of
+ @rhombus(system, ~at rhombus/namespace), and each @rhombus(val) must be
+ a potential result: an identifier for @rhombus(key_id)s other than
+ @rhombus(word, ~datum), or either @rhombus(32) or @rhombus(64) in the
+ case of @rhombus(word, ~datum).
+
+ Each right-hand side @rhombus(type) must be a @deftech{scalar} type,
+ such as @rhombus_t(int_t) or @rhombus_t(float_t). A
+ @rhombus_t(system_type_case) type is also scalar, since it selects among
+ scalar types.
+
+}
 
 @close_eval(ffi_eval)
 

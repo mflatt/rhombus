@@ -80,7 +80,7 @@ meta fun parse_compound_type(kind, name, [field_id, ...], [field_t, ...]):
                         [$field_id,
                          $(type_meta.unpack_type(field_t))],
                         ...]',
-                      'PointerOf(Any, #false)')
+                      'PointerOf(Any, #false, #false)')
 
 type.macro 'struct $(name :: MaybeName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
                                         ...)':

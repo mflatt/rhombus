@@ -1,9 +1,12 @@
 #lang rhombus/static/and_meta
 import:
+  "system_case.rhm" open
   lib("ffi2/main.rkt") as ffi2:
     expose:
       #{ffi2-sizeof} as ffi2_sizeof
+      #{ffi2-offsetof} as ffi2_offsetof
       #{ffi2-is-a?} as ffi2_is_a
+      #{ptr_t?}
       array as ffi2_array
 
 export:
@@ -17,16 +20,18 @@ export:
 module api:
   export:
     sizeof
+    offsetof
+    system_case
 
 statinfo.key elem_type:
   ~and: fun (a, b): a && b
   ~or: fun (a, b): a || b
 
-annot.macro 'PointerOf($ann, $elem_ffi2_ty)':
+annot.macro 'PointerOf($ann, $elem_ffi2_ty, $len)':
   let '$(any :: annot_meta.Parsed)' = 'Any'
   let (always, _) = annot_meta.unpack_predicate(any)
   annot_meta.pack_predicate('fun (x): x is_a_ffi2 [ffi2_array, $elem_ffi2_ty, #{*}]',
-                            '((elem_type, [$ann, $elem_ffi2_ty]))')
+                            '((elem_type, [$ann, $elem_ffi2_ty, $len]))')
 
 space.enforest type:
   space_path rhombus/ffi/type
@@ -40,6 +45,7 @@ space.enforest type:
     export:
       pack_type
       pack_tuple
+      pack_scalar
       pack_arrow
       pack_pointer
       pack_pointable
@@ -48,6 +54,7 @@ space.enforest type:
       pack_union
       pack_void
       pack_generic_pointer
+      pack_array
       pack_variable_array
       unpack_type
       unpack_pointer_element
@@ -58,8 +65,10 @@ space.enforest type:
       unpack_struct_proc_ids
       unpack_union_proc_ids
       unpack_void
+      unpack_scalar
       unpack_generic_pointer
       unpack_variable_array
+      unpack_array_length
       unpack_pointer_type
       unpack_annot
       unpack_tuple_annots
@@ -69,6 +78,8 @@ space.enforest type:
       pack('[($t), #false, #false, $ann]')
     fun pack_tuple(args, anns) :~ Syntax:
       pack('[#false, ~tuple, $args, $anns]')
+    fun pack_scalar(t :: Term, ann :: Syntax) :~ Syntax:
+      pack('[($t), ~scalar, #false, $ann]')
     fun pack_pointer(t :: Term, elem_t :: Term, ann :: Syntax) :~ Syntax:
       pack('[($t), ~pointer, $elem_t, $ann]')
     fun pack_pointable(t :: Term, ann :: Syntax) :~ Syntax:
@@ -76,7 +87,7 @@ space.enforest type:
     fun pack_arrow(t :: Term, ann :: Syntax) :~ Syntax:
       pack('[($t), ~arrow, #false, $ann]')
     fun pack_opaque(ptr_t :: Term) :~ Syntax:
-      pack('[#false, ~opaque, $ptr_t, PointerOf(Any, #false)]')
+      pack('[#false, ~opaque, $ptr_t, Never]')
     fun pack_struct(t :: Term, proc_ids, ann) :~ Syntax:
       pack('[($t), ~struct, $proc_ids, $ann]')
     fun pack_union(t :: Term, proc_ids, ann) :~ Syntax:
@@ -84,7 +95,9 @@ space.enforest type:
     fun pack_void(t :: Term) :~ Syntax:
       pack('[($t), ~void, #false, Void]')
     fun pack_generic_pointer(t :: Term) :~ Syntax:
-      pack('[($t), ~ptr_t, #false, PointerOf(Any, #false)]')
+      pack('[($t), ~ptr_t, #false, satisfying(#{ptr_t?})]')
+    fun pack_array(t :: Term, elem_t :: Term, ann :: Syntax, len :: Syntax) :~ Syntax:
+      pack('[($t), ~array, ($elem_t, $len), $ann]')
     fun pack_variable_array(t :: Term, e_seq, ann :: Syntax) :~ Syntax:
       pack('[#false, ~vararray, ($t, $e_seq), $ann]')
 
@@ -98,11 +111,13 @@ space.enforest type:
     fun unpack_pointer_element(stx, t :: Syntax):
       match unpack(t)
       | '[$_, ~pointer, $elem_t, $_]': elem_t
+      | '[$_, ~array, ($elem_t, $_), $_]': elem_t
       | '[$_, ~vararray, ($elem_t, $_), $_]': elem_t
       | ~else: stx && syntax_meta.error("expected a dereferenceable pointer type", stx, t)
     fun unpack_pointer_allocation_element(stx, t :: Syntax):
       match unpack(t)
       | '[$_, ~vararray, ($elem_t, $_), $_]': elem_t
+      | '[$_, ~array, ($elem_t, $_), $_]': elem_t
       | ~else: #false
     fun unpack_opaque_pointer(t :: Syntax):
       match unpack(t)
@@ -129,6 +144,10 @@ space.enforest type:
       match unpack(t)
       | '[$_, ~void, $_, $_]': #true
       | ~else: #false
+    fun unpack_scalar(t :: Syntax):
+      match unpack(t)
+      | '[$_, ~scalar, $_, $_]': #true
+      | ~else: #false
     fun unpack_generic_pointer(t :: Syntax):
       match unpack(t)
       | '[$_, ~ptr_t, $_, $_]': #true
@@ -137,14 +156,19 @@ space.enforest type:
       match unpack(t)
       | '[$_, ~vararray, ($elem_t, $n_seq), $_]': [elem_t, n_seq]
       | ~else: #false
+    fun unpack_array_length(t :: Syntax):
+      match unpack(t)
+      | '[$_, ~array, ($elem_t, $n), $_]': n
+      | ~else: #false
     fun unpack_pointer_type(stx, t :: Syntax):
       match unpack(t)
       | '[($t), ~ptr_t, $_, $_]': t
       | '[($t), ~pointer, $_, $_]': t
       | '[($t), ~pointable, $_, $_]': t
+      | '[($t), ~array, $_, $_]': t
       | '[($t), ~arrow, $_, $_]': t
       | ~else: stx && syntax_meta.error("expected a pointer type", stx, t)
-
+    
     fun unpack_annot(t :: Syntax):
       match unpack(t)
       | '[$_, $_, $_, $ann]': ann
@@ -161,5 +185,33 @@ space.enforest type:
 expr.macro 'sizeof($(t :: type_meta.Parsed))':
   expr_meta.pack_s_exp(['ffi2_sizeof', type_meta.s_exp(type_meta.unpack_type(t))])
 
+expr.macro 'offsetof($(t :: type_meta.Parsed), $(field_id :: Identifier))':
+  ~all_stx: stx
+  let '[$_, [$id, ...]]':
+    type_meta.unpack_struct_proc_ids(t)
+      || type_meta.unpack_union_proc_ids(t)
+      || syntax_meta.error("not a struct or union type", stx, t)
+  unless field_id.unwrap() in [id.unwrap(), ...]
+  | syntax_meta.error("not a field in the struct or union type", stx, field_id)
+  expr_meta.pack_s_exp(['ffi2_offsetof',
+                        type_meta.s_exp(type_meta.unpack_type(t)),
+                        field_id])
+
 expr.macro '$e is_a_ffi2 $(t :: Term)':
   expr_meta.pack_s_exp(['ffi2_is_a', e, type_meta.s_exp(t)])
+
+type.macro 'system_case $(key :: Identifier)
+            | $(vals :: SystemCaseVals): $(thn :: type_meta.Parsed)
+            | ~else: $(els :: type_meta.Parsed)':
+  ~all_stx: stx
+  let key = check_system_case(stx, key, [vals.t, ...])
+  unless type_meta.unpack_scalar(thn)
+  | syntax_meta.error("expected a scalar type", stx, thn)
+  unless type_meta.unpack_scalar(els)
+  | syntax_meta.error("expected a scalar type", stx, els)
+  type_meta.pack_scalar('[#{system-type-case},
+                          $key,
+                          [[$vals.t, ...], $thn],
+                          [else, $els]]',
+                        '$(type_meta.unpack_annot(thn)) || $(type_meta.unpack_annot(thn))')
+

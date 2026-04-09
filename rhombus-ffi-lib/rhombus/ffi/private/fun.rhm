@@ -205,10 +205,21 @@ meta fun parse_c_fun(self, stx, lib = #false, default_fail_expr = #false, defaul
          | '~lib: $lib_block'
          | '~c_id: $(c_id :: Identifier)'
          | '~fail: $(fail_expr :: Group)'
-         | '~wrap: $(wrap_expr :: Group)')
+         | '~wrap: $(wrap_expr :: Group)'
+         | '$(abi && '~abi $_')'
+         | '$(atomic && '~atomic')'
+         | '$(collect_safe && '~collect_safe')'
+         | '$(allow_callback_exn && '~allow_callback_exn')'
+         | '$(in_original && '~in_original')')
        $body
        ...':
-      let t = parse_as_arrow(header.args, '$header.r_seq ...', '$body; ...')
+      let options = '$(abi || '')
+                     $(atomic || '')
+                     $(collect_safe || '')
+                     $(allow_callback_exn || '')
+                     $(in_original || '')'
+      let options = (if options matches '' | options | ': $options')
+      let t = parse_as_arrow(header.args, '$header.r_seq ...', options, '$body; ...')
       build_c_def(stx,
                   self,
                   #false, header.id, t,
@@ -218,7 +229,7 @@ meta fun parse_c_fun(self, stx, lib = #false, default_fail_expr = #false, defaul
                   wrap_expr || default_wrap_expr,
                   header.ret, header.ret_is_checked)
   | '$_ $(header :: Header)':
-      let t = parse_as_arrow(header.args, '$header.r_seq ...', '')
+      let t = parse_as_arrow(header.args, '$header.r_seq ...', '', '')
       build_c_def(stx,
                   self,
                   #false, header.id, t,

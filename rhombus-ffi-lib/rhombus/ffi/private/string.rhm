@@ -8,5 +8,4 @@ export:
 
 c_type string_t:
   ~extends: mutable_string_t
-  ~c_to_rhombus: fun (str): to_string(str)
-
+  ~c_to_rhombus: fun (str): str && to_string(str)

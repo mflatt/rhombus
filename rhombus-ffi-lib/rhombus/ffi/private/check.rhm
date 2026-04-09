@@ -36,18 +36,20 @@ meta fun wrap_ptr_t_check(who, e):
        p'
   )
 
-fun not_an_index(who, i):
+fun not_an_index(who, i, len):
   error(~who: who,
         error.annot_msg(),
-        error.annot("Int"),
+        if len
+        | error.annot("Int.in(0 .. " +& len +& ")")
+        | error.annot("Int"),
         error.val(i))
 
-meta fun wrap_index_check(who, e):
+meta fun wrap_index_check(who, e, len):
   expr_meta.pack_expr(
     'block:
        let i = $e
-       unless_unsafe i is_a Int
-       | not_an_index($(to_string(who)), i)
+       unless_unsafe (i is_a Int && (! $len || (((i :~ Int) >= 0) && (i < $len))))
+       | not_an_index($(to_string(who)), i, $len)
        i'
   )
 

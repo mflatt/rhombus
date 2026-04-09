@@ -11,11 +11,11 @@ meta:
       id.replace_scopes('here')
 
 decl.macro 'bounce:
-              $id $ann
+              $id $ann $pack_type
               ...':
   '«export type.macro '$id':
       ~all_stx: stx
-      type_meta.pack_type(ffi2.pack('$id'), '$ann').relocate(stx)
+      type_meta. $pack_type(ffi2.pack('$id'), '$ann').relocate(stx)
     ...
     export annot.macro '$id':
       let '$('$')(a :: annot_meta.Parsed)' = '$ann'
@@ -24,7 +24,14 @@ decl.macro 'bounce:
                                 si)
     ...»'
 
-bounce:
+decl.macro 'bounce_scalar:
+              $id $ann
+              ...':
+  'bounce:
+     $id $ann pack_scalar
+     ...'
+
+bounce_scalar:
   int8_t Int
   uint8_t Int
   byte_t Int
@@ -50,14 +57,17 @@ bounce:
   wchar_t Char
   bool_t Boolean
   boolint_t Boolean
-  racket_t Any
-  bytes_t Bytes
-  path_t Path
+
+bounce:
+  racket_t Any pack_pointable
+  bytes_t (maybe(Bytes)) pack_pointable
+  path_t (maybe(Path)) pack_pointable
 
 export type.macro 'void_t':
   ~all_stx: stx
   type_meta.pack_void(ffi2.pack('void_t')).relocate(stx)
-
+export annot.macro 'void_t': 'Void'
+  
 export type.macro 'ptr_t':
   ~all_stx: stx
   type_meta.pack_generic_pointer(ffi2.pack('ptr_t')).relocate(stx)
@@ -65,6 +75,7 @@ export type.macro 'ptr_t':
 export type.macro 'bytes_ptr_t':
   ~all_stx: stx
   type_meta.pack_pointable(ffi2.pack('bytes_ptr_t'), 'Bytes').relocate(stx)
+export annot.macro 'bytes_ptr_t': 'maybe(Bytes)'
 
 module string:
   export type.macro 'mutable_string_t':

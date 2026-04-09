@@ -2,6 +2,13 @@
 @(import:
     "common.rhm" open)
 
+@(def ffi_eval = make_rhombus_eval())
+@examples(
+  ~eval: ffi_eval
+  ~hidden:
+    import ffi open
+)
+
 @title(~tag: "pointer"){Foreign Pointers}
 
 A @deftech{pointer} object encapsulates a memory address and a
@@ -52,182 +59,268 @@ garbage collector is independent of its tags.
 
 }
 
-@//||{
+@doc(
+  ~nonterminal:
+    size_expr: block expr
+  type.macro '$elem_type #%index [$size_expr]'
+){
 
-@defform[(ffi2-malloc maybe-mode
-                      maybe-type
-                      n-expr maybe-bytes
-                      maybe-as-type)
-         #:grammar ([maybe-mode #:gcable
-                                #:gcable-traced
-                                #:gcable-immobile
-                                #:gcable-traced-immobile
-                                #:manual
-                                ϵ]
-                    [maybe-type type
-                                ϵ]
-                    [maybe-bytes #:bytes
-                                 ϵ]
-                    [maybe-as-type (code:line #:as as-type)
-                                   ϵ])]{
+ The @rhombus_t(#%index) infix operator is an implicit form and not
+ usually written explicitly: @rhombus_t(elem_type[size_expr]) is
+ equivalent to @rhombus_t(elem_type #%index [size_expr]),
 
-Allocates memory.
+ Describes a type that is represented by an array on the C side and a
+ @tech{pointer} object in the Rhombus side. In most type contexts, the
+ array's @rhombus(size_expr) must be a literal nonnegative integer. When a
+ type using @litchar{[]} is used with @rhombus(new), however, then
+ @rhombus(size_expr) can be any expression that produces a nonnegative
+ integer.
 
-The amount of allocated memory depends on @racket[n-expr]. If no type
-is provided as @racket[maybe-type], or if @racket[maybe-bytes] is
-@racket[#:bytes], then the allocated memory spans as many bytes as the
-value of @racket[n-expr]. Otherwise, the allocated memory's size is
-the result of @racket[(* n-expr (ffi2-sizeof maybe-type))].
+ The Rhombus-side pointer representation uses a @tech{tag} formed by
+ adding a @litchar{*} suffix on the name of @rhombus_t(elem_type), as
+ long as it has a name. If @rhombus_t(elem_type) is an immediate
+ @rhombus_t(struct), @rhombus_t(union), or @rhombus_t(->) form, then it
+ has no name, and the Rhombus-side representation is a generic pointer.
 
-If @racket[maybe-as] is specified, then the result is cast to
-@racket[as-type] in the sense of @racket[ffi2-cast]. Otherwise, the
-result is a @tech{pointer} object encapsulating the address of
-allocated memory. If @racket[maybe-type] is a @racket[struct],
-@racket[union], or size @racket[array] type (and @racket[maybe-as] is
-not specified), the result is a pointer object using the
-representation of @racket[maybe-type]. Otherwise, the result is a
-pointer object using the representation of @racket[void_t*].
+ When an expression has the static information of an array type, then
+ indexing via @rhombus(mem) extracts a Rhombus representation for an
+ element of the array, and indexing with @rhombus(mem) plus @rhombus(:=)
+ assigns to the array by converting a Rhombus value to a C representation
+ to install into the array. If @rhombus(size_expr) is a literal integer,
+ then the bounds checking prevents indexing with positions that are
+ negative or not less than the size.
 
-By default, allocation uses @racket[#:gcable] mode, but a
-@racket[maybe-mode] specificaiton can pick any of the supported modes:
-
-@itemlist[
-
- @item{@racket[#:gcable]: Allocates in Racket's garbage-collected
-       space. The allocated memory becomes eligible for garbage
-       collection when it is not referenced by any reachable pointer
-       object or @tech{traced} allocated memory. Even before
-       collection, the meory manager may relocate the object, but
-       garbage collection or relocation cannot happen with a
-       foreign-procedure call is active.}
-
- @item{@racket[#:gcable-immobile]: Like @racket[#:gcable], but the
-       allocated memory will not be relocated by a different address
-       by the memory manager as long as it is not collected.}
-
- @item{@racket[#:gcable-traced]: Like @racket[#:gcable], but the
-       allocated memory is @deftech{traced}, meaning that it can
-       itself contain references to other allocated memory. The
-       references are updated by the memory manager if it moved the
-       referenced objects.}
-
- @item{@racket[#:gcable-traced-immobile]: Like
-       @racket[#:gcable-traced], but the allocated memory will not be
-       relocated by a different address by the memory manager as long
-       as it is not collected.}
-
- @item{@racket[#:gcable]: Allocates outside of Racket's
-       garbage-collected space. The allocated memory is never
-       relocated by the garbage collection, and it must be freed
-       explicitly with @racket[ffi2-free].}
-
-]
+@examples(
+  ~eval: ffi_eval
+  ~repl:
+    sizeof(double_t[3])
+    def p = new double_t[3]
+    p
+    mem p[0] := 0.0
+    mem p[1] := 10.0
+    mem p[2] := 20.0
+    mem p[1]
+    ~error:
+      mem p[3]
+)
 
 }
 
-@defproc[(ffi2-free [ptr void_t*?]) void?]{
+@doc(
+  ~nonterminal:
+    field_expr: block expr
+    variant_id: block id
+  expr.macro 'new $maybe_mode $type'
+  expr.macro 'new $maybe_mode $type($field_expr, ...)'
+  expr.macro 'new $maybe_mode $type($variant_id: $field_expr)'
+  grammar maybe_mode
+  | ~manual
+  | ~gcable
+  | ~immobile
+  | ~traced
+  | ~traced_immobile
+  | ϵ
+){
 
-Deallocates memory that was allocated with @racket[ffi2-malloc] in
-@racket[#:manual] mode.
+ Allocates memory. A @rhombus(type(field_expr, ...)) form is allowed
+ only when @rhombus(type) is a @rhombus_t(struct) type, and a
+ @rhombus(type(variant_id: field_expr)) form is allowed only when
+ @rhombus(type) is a @rhombus_t(union) type.
 
-}
+ The amount of allocated memory depends on @rhombus(type), where the
+ allocated memory spans as many bytes as the C representation of
+ @rhombus(type). A type of the form
+ @rhombus(#,(@rhombus(elem_type, ~var))[#,(@rhombus(expr, ~var))]) is
+ allowed with a non-literal @rhombus(expr, ~var) to allocate the
+ indicated multiple of the C size of @rhombus(elem_type, ~var) in bytes.
 
-@defform[(ffi2-ref ptr-expr type maybe-offset)
-         #:grammar ([maybe-offset offset-expr
-                                  (code:line offset-expr #:bytes)
-                                  ϵ])]{
+ By default, allocation uses @rhombus(~gcable) mode, but a
+ @rhombus(maybe_mode) specification can pick any of the supported modes:
 
-}
+@itemlist(
 
-@defform[(ffi2-set! ptr-expr type maybe-offset val-expr)
-         #:grammar ([maybe-offset offset-expr
-                                  (code:line offset-expr #:bytes)
-                                  ϵ])]{
+ @item{@rhombus(~gcable): Allocates in Rhombus's garbage-collected
+  space. The allocated memory becomes eligible for garbage collection when
+  it is not referenced by any reachable pointer object or @tech{traced}
+  allocated memory. Even before collection, the memory manager may relocate
+  the object, but garbage collection or relocation cannot happen with a
+  foreign-procedure call is active.}
 
-}
+ @item{@rhombus(~immobile): Like @rhombus(~gcable), but the allocated
+  memory will not be relocated by a different address by the memory
+  manager as long as it is not collected.}
 
-@defform[(ffi2-cast expr option ...)
-         #:grammar ([option (code:line #:from from-type)
-                            (code:line #:to to-type)
-                            (code:line #:offset maybe-type n-expr)]
-                    [maybe-type type
-                                ϵ])]{
+ @item{@rhombus(~traced): Like @rhombus(~gcable), but the allocated
+  memory is @deftech{traced}, meaning that it can itself contain
+  references to other allocated memory. The references are updated by the
+  memory manager if it moved the referenced objects.}
 
-Converts the Racket representation produced by @racket[expr] from one
-foreign type's representation to another. If @racket[from-type] or
-@racket[to-type] is not specified, each defaults to @racket[void_t*].
+ @item{@rhombus(~traced_immobile): Like @rhombus(~traced), but the
+  allocated memory will not be relocated by a different address by the
+  memory manager as long as it is not collected.}
 
-If the @racket[#:offset] option is provided, the resulting pointer is
-shifted to represent an address that is @racket[_n] bytes later, where
-@racket[_n] is the result of @racket[n-expr] multiplied by
-@racket[(ffi2-sizeof maybe-type)] or by @racket[1] if
-@racket[maybe-type] is empty.
+ @item{@rhombus(~manual): Allocates outside of Rhombus's
+  garbage-collected space. The allocated memory is never relocated by the
+  garbage collection, and it must be freed explicitly with
+  @rhombus(free).}
 
-}
-
-@defform*[[(ffi2-add ptr-expr n-expr)
-           (ffi2-add ptr-expr type n-expr)]]{
-
-A shorthand for @racket[(ffi2-cast ptr-expr #:offset n-expr)]
-or @racket[(ffi2-cast ptr-expr #:offset type n-expr #:to (array type *))].
-
-}
-
-@deftogether[(
-@defproc[(ffi2-memcpy [dest ptr_t?]
-                      [src ptr_t?]
-                      [len exact-nonnegative-integer?]
-                      [#:dest-offset dest-offset exact-nonnegative-integer? 0]
-                      [#:src-offset src-offset exact-nonnegative-integer? 0])
-         void?]
-@defproc[(ffi2-memmove [dest ptr_t?]
-                       [src ptr_t?]
-                       [len exact-nonnegative-integer?]
-                       [#:dest-offset dest-offset exact-nonnegative-integer? 0]
-                       [#:src-offset src-offset exact-nonnegative-integer? 0])
-         void?]
-@defproc[(ffi2-memset [dest ptr_t?]
-                      [byte byte_t?]
-                      [len exact-nonnegative-integer?]
-                      [#:dest-offset dest-offset exact-nonnegative-integer? 0])
-         void?]
-)]{
-
-The @racket[ffi2-memcpy] and @racket[ffi2-memmove] functions copy
-@racket[len] bytes from the address represented by @racket[(ffi2-add
-src src-offset)] to the address represented by @racket[(ffi2-add dest
-dest-offset)]. In the case of @racket[ffi2-memcpy], the source and
-destination regions must not overlap.
-
-The @racket[ffi2-memcpy] function sets @racket[len] bytes at the
-address represented by @racket[(ffi2-add dest dest-offset)] so that
-each byte's value is @racket[byte].
+)
 
 }
 
+@doc(
+  ~nonterminal:
+    size_expr: block expr
+    maybe_mode: new
+  expr.macro 'malloc $maybe_mode $maybe_as ($size_expr)'
+  grammar maybe_as
+  | ~as $type
+  | ϵ
+){
 
-@deftogether[(
-@defproc[(ptr_t->uintptr [ptr ptr_t?]) exact-nonnegative-integer?]
-@defproc[(uintptr->ptr_t [int exact-nonnegative-integer?]) ptr_t?]
-)]{
+ Allocates memory in the same way as @rhombus(new), but where
+ @rhombus(size_expr) specifies a size in bytes.
 
-Conversions between addresses represented as pointers and addresses as
-represented as integers.
-
-Beware that the integer form of an address managed by Racket's garbage
-collector can become immediately invalid, unless an object at the
-address was allocated as immobile.
-
-}
-
-@deftogether[(
-@defproc[(ptr_t->cpointer [ptr ptr_t?]) cpointer?]
-@defproc[(cpointer->ptr_t [cptr cpointer?]) ptr_t?]
-)]{
-
-Conversions between @racketmodname[ffi2] pointer representations
-and @racketmodname[ffi/unsafe] pointer representations.
+ If @rhombus(~as type) is specified, the result pointer is @tech{tag}ged
+ as @rhombus(type), where @rhombus(type) must be a pointer type.
 
 }
 
-}||
+@doc(
+  fun free(p :: ptr_t) :: Void
+){
+
+ Deallocates memory that was allocated with @rhombus(new) or
+ @rhombus(malloc) in @rhombus(~manual) mode.
+
+}
+
+@doc(
+  ~literal:
+    *
+    :=
+  ~nonterminal:
+    ptr_expr: block expr
+    val_expr: block expr
+    index_expr: block expr
+    delta_expr: block expr
+  expr.macro 'mem *($type*)$ptr_expr'
+  expr.macro 'mem *($type*)$ptr_expr := $val_expr'
+  expr.macro 'mem $ptr_expr[$index_expr]'
+  expr.macro 'mem $ptr_expr[$index_expr] := $val_expr'
+  expr.macro 'mem & $ptr_expr[$delta_expr]'
+){
+
+ Extracts a Rhombus representation for @rhombus(type) of the C
+ representation stored at the address represented by the @tech{pointer}
+ result of @rhombus(ptr_expr); updates the C representation stored at the
+ address represented by @rhombus(ptr_expr) with a value converted from a
+ Rhombus representation produced by @rhombus(val_expr); or, in the case
+ of @rhombus(mem &), shifts the address from @rhombus(ptr_expr) by
+ @rhombus(delta_expr) times the size of @rhombus(type) (which is derived
+ from static information).
+
+ When the @rhombus(*(type*)ptr_expr) form is used, the tags on the
+ result of @rhombus(ptr_expr) are ignored. The pointer is effectively
+ @rhombus(cast) to @rhombus(type*).
+
+ When the @rhombus(ptr_expr[index_expr]) or
+ @rhombus(& ptr_expr[delta_expr]) form is used, then @rhombus(ptr_expr)
+ must have static information to indicate an element type to be used as
+ @rhombus(type).
+
+@examples(
+  ~eval: ffi_eval
+  ~repl:
+    def p = new double_t
+    p
+    mem p[0] := 0.0
+    mem p[0]
+    mem *(int64_t*)p
+    mem *(int64_t*)p := -1
+    mem p[0]
+    mem (mem &p[-3])[3]
+)
+
+}
+
+@doc(
+  ~nonterminal:
+    offset_expr: block expr
+  expr.macro 'cast $maybe_from_type $maybe_to ($to_type) $maybe_offset $expr'
+  grammar maybe_from_type
+  | ~from $from_type
+  | ϵ
+  grammar maybe_to
+  | ~to
+  | ϵ
+  grammar maybe_offset
+  | ~offset ($offset_expr)
+  | ϵ
+){
+
+ Converts the Rhombus representation produced by @rhombus(expr) from one
+ type's representation to another. If @rhombus(from_type) or is not
+ specified, it defaults to @rhombus_t(ptr_t). The C representation for
+ both @rhombus(from_type) and @rhombus(to_type) must be an address, and
+ conversions may apply to the Rhombus representation produced by
+ @rhombus(expr) (based on @rhombus(from_type)) or the converted result
+ (based on @rhombus(to_type)) of the cast address.
+
+ If @rhombus(~offset (offset_expr)) is specified, then the
+ (pre-conversion) address produced by the cast is @rhombus(offset_expr)
+ bytes after the address represented by the converted result of
+ @rhombus(expr).
+
+}
+
+@doc(
+  fun memcpy(
+    dest :: ptr_t,
+    src :: ptr_t,
+    len :: NonnegInt,
+    ~dest_offset: dest_offset :: Int = 0,
+    ~src_offset: src_offset :: Int = 0
+  ) :: Void
+  fun memmove(
+    dest :: ptr_t,
+    src :: ptr_t,
+    len :: NonnegInt,
+    ~dest_offset: dest_offset :: Int = 0,
+    ~src_offset: src_offset :: Int = 0
+  ) :: Void
+  fun memset(
+    dest :: ptr_t,
+    byte :: Byte,
+    len :: NonnegInt,
+    ~dest_offset: dest_offset :: Int = 0
+  ) :: Void
+){
+
+ The @rhombus(memcpy) and @rhombus(memmove) functions copy @rhombus(len)
+ bytes from the address represented by @rhombus(src) plus
+ @rhombus(src_offset) to the address represented by @rhombus(dest) plus
+ @rhombus(dest_pffset). In the case of @rhombus{memcpy}, the source and
+ destination regions must not overlap.
+
+ The @rhombus(memcpy) function sets @rhombus(len) bytes at the address
+ represented by @rhombus(dest) plus @rhombus(dest_pffset) so that each
+ byte's value is @rhombus(byte).
+
+}
+
+@doc(
+  fun ptr_to_uintptr(ptr :: ptr_t) :: uintptr_t
+  fun uintptr_to_ptr(addr :: uintptr_t) :: ptr_t
+){
+
+ Conversions between addresses represented as pointers and addresses as
+ represented as integers.
+
+ Beware that the integer form of an address managed by Rhombus's garbage
+ collector can become immediately invalid, unless an object at the
+ address was allocated as immobile.
+
+}
+
+@close_eval(ffi_eval)

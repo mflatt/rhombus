@@ -11,7 +11,7 @@
 ){
 
  Represents a foreign library. Create a @rhombus(Lib) instance with
- @rhombus(List.load), and access exports of a loaded library using
+ @rhombus(Lib.load), and access exports of a loaded library using
  @rhombus(Lib.find).
 
 }

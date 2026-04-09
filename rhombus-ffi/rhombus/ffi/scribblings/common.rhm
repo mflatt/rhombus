@@ -14,6 +14,7 @@ export:
     all_from(rhombus/meta)
   foreign
   type
+  abi
   ref_doc
   rhombus_t
 
@@ -44,6 +45,17 @@ namespace type:
       ~extract_typeset: doc_meta.operator_macro_extract_typeset
     )
 
+namespace abi:
+  export:
+    macro
+  doc.bridge macro:
+    doc_meta.transformer(
+      ~extract_desc: fun (stx): "foreign ABI",
+      ~extract_space: fun (stx): #'#{rhombus/ffi/abi},
+      ~extract_name: doc_meta.operator_macro_extract_name,
+      ~extract_metavariables: doc_meta.operator_macro_extract_metavariables,
+      ~extract_typeset: doc_meta.operator_macro_extract_typeset
+    )
 
 def ref_doc = ModulePath'lib("rhombus/scribblings/reference/rhombus-reference.scrbl")'
 

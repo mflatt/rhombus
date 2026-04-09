@@ -14,4 +14,4 @@ The @rhombusmodname(ffi) library enables direct use of foreign libraries that
 @include_section("compound-type.scrbl")
 @include_section("define-type.scrbl")
 @include_section("pointer.scrbl")
-@include_section("procedure.scrbl")
+@include_section("function.scrbl")
