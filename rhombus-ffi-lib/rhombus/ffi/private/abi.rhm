@@ -1,11 +1,15 @@
 #lang rhombus/static/and_meta
 import:
   "system_case.rhm" open
+  lib("ffi2/main.rkt"):
+    expose:
+      #{system-type-case}
 
 export:
   default_abi
   cdecl_abi
   stdcall_abi
+  system_case
 
 module internal:
   export:
@@ -37,13 +41,13 @@ abi.macro 'cdecl_abi':
 abi.macro 'stdcall_abi':
   abi_meta.pack(ffi2.pack('stdcall_abi'))
 
-abi.macro 'system_type_case $(key :: Identifier)
+abi.macro 'system_case $(key :: Identifier)
            | $(vals :: SystemCaseVals): $(thn :: abi_meta.Parsed)
            | ~else: $(els :: abi_meta.Parsed)':
   ~all_stx: stx
   let key = check_system_case(stx, key, [vals.t, ...])
   abi_meta.pack('[#{system-type-case},
                   $key,
-                  [[$vals.t, ...], $thn],
-                  [else, $els]]')
+                  [[$vals.t, ...], $(abi_meta.unpack(thn))],
+                  [else, $(abi_meta.unpack(els))]]')
 

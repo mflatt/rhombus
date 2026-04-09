@@ -245,25 +245,35 @@
 
 }
 
-@doc(
-  type.macro 'system_case $key_id
-              | $vals: $type
-              | ~else: $type'
+@doc(  
+  type.macro 'system_case $key
+              | $vals: $match_type
+              | ~else: $else_type'
+  grammar key
+  | #,(@rhombus(type, ~datum))
+  | os
+  | arch
+  | word
+  grammar vals
+  | $id
+  | 32
+  | 64
+  | $vals || $vals
 ){
 
  Describes a type with a platform-specific representation or a
  platform-specific choice of procedure @tech{ABI}, enabling a
  compile-time (later than expand-time) choice. The symbol form of
- @rhombus(key_id) corresponds to a method of
+ @rhombus(key) corresponds to a method of
  @rhombus(system, ~at rhombus/namespace), and each @rhombus(val) must be
  a potential result: an identifier for @rhombus(key_id)s other than
  @rhombus(word, ~datum), or either @rhombus(32) or @rhombus(64) in the
  case of @rhombus(word, ~datum).
 
- Each right-hand side @rhombus(type) must be a @deftech{scalar} type,
- such as @rhombus_t(int_t) or @rhombus_t(float_t). A
- @rhombus_t(system_type_case) type is also scalar, since it selects among
- scalar types.
+ Each of @rhombus(match_type) amd @rhombus(else_type) must be a
+ @deftech{scalar} type, such as @rhombus_t(int_t) or @rhombus_t(float_t).
+ A @rhombus_t(system_case) type is also scalar, since it selects
+ among scalar types.
 
 }
 

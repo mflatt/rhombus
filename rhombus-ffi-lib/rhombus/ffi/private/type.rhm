@@ -8,6 +8,7 @@ import:
       #{ffi2-is-a?} as ffi2_is_a
       #{ptr_t?}
       array as ffi2_array
+      #{system-type-case}
 
 export:
   type
@@ -211,7 +212,7 @@ type.macro 'system_case $(key :: Identifier)
   | syntax_meta.error("expected a scalar type", stx, els)
   type_meta.pack_scalar('[#{system-type-case},
                           $key,
-                          [[$vals.t, ...], $thn],
-                          [else, $els]]',
+                          [[$vals.t, ...], $(type_meta.unpack_type(thn))],
+                          [else, $(type_meta.unpack_type(els))]]',
                         '$(type_meta.unpack_annot(thn)) || $(type_meta.unpack_annot(thn))')
 

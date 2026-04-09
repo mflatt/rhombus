@@ -32,15 +32,16 @@ block:
   check new ~traced int_t[10] ~is_a ptr_t
   check new ~traced_immobile int_t[10] ~is_a ptr_t
 
-#//
 block:
   foreign.type whatever_t:
     ~extends: int_t
   let p1 = malloc ~as whatever_t* (10) 
-  let p1 = new whatever_t
-  check p1 ~is_a ptr_t
-  check mem p1[0] = 11 ~is #void
-  check mem p1[0] ~is 11
+  check p1 ~is_a foreign.type whatever_t*
+  check p1 ~is_a foreign.type int_t*
+  check mem *(int_t *)p1 := 11 ~is #void
+  check mem *(int_t *)p1 ~is 11
+  check cast ~from (whatever_t*) ~to (ptr_t) p1 ~is_a ptr_t
+  check cast ~from (whatever_t*) ~to (ptr_t) (new int_t) ~throws "value does not match type"
 
 block:
   let p = new double_t[3]
@@ -61,3 +62,29 @@ block:
   check p is_a ptr_t/gcable ~is #false
   free(p)
 
+check:
+  new int_t* ~is_a foreign.type int_t * *
+  new int_t** ~is_a foreign.type int_t * * *
+  new int_t*[3] ~is_a foreign.type int_t * *
+  new int_t*[3+1] ~is_a foreign.type int_t * *
+  (new int_t*) is_a (foreign.type int_t*) ~is #false
+  (new int_t*) is_a (foreign.type int_t**) ~is #true
+  (new int_t**) is_a (foreign.type int_t * /gcable * /gcable *) ~is #true
+
+check mem *(int_t *)0 := "10" ~throws "value does not satisfy annotation"
+check mem *(int_t *)(new int_t) := "10" ~throws "value does not match type"
+check mem (new int_t)["x"] ~throws "value does not satisfy annotation"
+check mem (new int_t)["x"] := 10 ~throws "value does not satisfy annotation"
+
+block:
+  let ppi = new ~traced int_t*
+  block:
+    let pi = new int_t
+    mem pi[0] := 17
+    mem ppi[0] := pi
+  check mem (mem ppi[0])[0] ~is 17
+  check (mem (mem ppi[0])[0]) < mem (mem ppi[0])[0] ~is #false
+
+  let pppi = new ~traced int_t**
+  mem pppi[0] := ppi
+  check mem (mem (mem pppi[0])[0])[0] ~is 17

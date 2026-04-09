@@ -76,14 +76,14 @@ meta syntax_class MaybePost:
     options
     tail
 | ': $(group_option_sequence
-       | '$(abi_kw && '~abi') $(abi :: abi_meta.Parsed)'
+       | '$(abi_kw && '~abi'): $(abi :: abi_meta.Parsed)'
        | '$(atomic && '~atomic')'
        | '$(collect_safe && '~collect_safe')'
        | '$(allow_callback_exn && '~allow_callback_exn')'
        | '$(in_original && '~in_original')')
      $res
      ...':
-    field options: (if abi | [abi_kw, type_meta.s_exp(abi)] | [])
+    field options: (if abi | [abi_kw, abi_meta.unpack(abi)] | [])
                      ++ (if atomic | [atomic] | [])
                      ++ (if collect_safe | ['~#{collect-safe}'.relocate(collect_safe)] | [])
                      ++ (if allow_callback_exn | ['~#{allow-callback-exn}'.relocate(allow_callback_exn)] | [])

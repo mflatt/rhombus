@@ -47,3 +47,57 @@ check (cast ~from (string_t) ~to (star_string_t) "hello") ++ "!" ~is "*hello*!"
 check sizeof(star_string_t) ~is sizeof(ptr_t)
 check new star_string_t ~is_a ptr_t
 check mem (new ~traced star_string_t)[0] ~is #false
+
+type.macro 'TwoOf($(t :: type_meta.Parsed))':
+  'struct (a :: $t,
+           b :: $t)'
+check sizeof(TwoOf(double_t)) ~is 16
+
+block:
+  foreign.type my_int_t = (system_case type
+                           | macosx || windows || unix: uint_t
+                           | ~else: int_t)
+  let pi = new int_t
+  mem pi[0] := -1
+  check mem *(my_int_t *)pi ~is 0xFFFFFFFF
+  check sizeof(my_int_t) ~is 4
+
+check:
+  ~eval
+  import ffi open
+  foreign.type my_int_t = (system_case type
+                           | macosx: ptr_t
+                           | ~else: int_t)
+  ~throws "expected a scalar type"
+
+check:
+  ~eval
+  import ffi open
+  foreign.type my_int_t = (system_case type
+                           | macosx: int_t
+                           | ~else: ptr_t)
+  ~throws "expected a scalar type"
+
+check:
+  ~eval
+  import ffi open
+  foreign.type my_int_t = (system_case nonesuch
+                           | macosx: int_t
+                           | ~else: uint_t)
+  ~throws "not a recognized system-case key"
+
+check:
+  ~eval
+  import ffi open
+  foreign.type my_int_t = (system_case os
+                           | "macosx": int_t
+                           | ~else: uint_t)
+  ~throws "expected an identifier for case value"
+
+check:
+  ~eval
+  import ffi open
+  foreign.type my_int_t = (system_case word
+                           | macosx: int_t
+                           | ~else: uint_t)
+  ~throws "expected `32` or `64` for `word` case"

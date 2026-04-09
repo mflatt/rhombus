@@ -34,4 +34,4 @@ meta fun check_system_case(stx, key, [val, ...]):
         | ~else: syntax_meta.error("expected `32` or `64` for `word` case", stx, val)
       key
   | ~else:
-      syntax_meta.error("not a recognized system case", stx, key)
+      syntax_meta.error("not a recognized system-case key", stx, key)

@@ -284,9 +284,15 @@
 }
 
 @doc(
+  ~nonterminal:
+    key: system_case ~at rhombus/ffi/type
+    vals: system_case ~at rhombus/ffi/type
   abi.macro 'default_abi'
   abi.macro 'cdecl_abi'
   abi.macro 'stdcall_abi'
+  abi.macro 'system_case $key
+             | $vals: $abi
+             | ~else: $abi'
 ){
 
  An @deftech{ABI} specifies a calling convention to use for a foreign
@@ -300,6 +306,9 @@
  @rhombus(cdecl_abi, ~at rhombus/ffi/abi) and
  @rhombus(stdcall_abi, ~at rhombus/ffi/abi) are treated the same as
  @rhombus(default_abi, ~at rhombus/ffi/abi).
+
+ The @rhombus(system_case, ~at rhombus/ffi/abi) ABI form is analogous to
+ @rhombus_t(system_case) for types.
 
 }
 
