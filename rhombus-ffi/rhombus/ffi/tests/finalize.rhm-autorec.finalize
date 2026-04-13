@@ -1,0 +1,24 @@
+#lang rhombus/static
+import:
+  ffi open
+  ffi/finalize
+
+foreign.linker libc:
+  ~lib: Lib.load(#false)
+
+libc.fun c_free(size_t) :: ptr_t:
+  ~c_id: free        
+  ~wrap: finalize.deallocator()
+
+libc.fun c_malloc(size_t) :: ptr_t:
+  ~c_id: malloc
+  ~wrap: finalize.allocator(c_free)
+
+def p1 = malloc(10)
+free(p1)
+
+for (j in 0..10):
+  for (i in 0..1000):
+    malloc(10)
+  system.collect()
+  

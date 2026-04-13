@@ -99,6 +99,25 @@
   provided, then the predicate associated with @rhombus(parent_type) is
   used.}
 
+ @item{@rhombus(~racket_to_c): Provides a conversion function toward C
+  as the result of @rhombus(racket_to_c_body) sequence. This converter is
+  applied to a Rhombus value that is supplied for a @rhombus(id) type. The
+  result of conversion should be a Rhombus representation for
+  @rhombus(parent_type). If @rhombus(~racket_to_c) is not provided,
+  conversion is the identity function.}
+
+ @item{@rhombus(~release): Provides a function that finalizes conversion
+  from Rhombus to C as the result of @rhombus(release_body) sequence. The
+  function is applied to the result of @rhombus(parent_type)'s release
+  function after the C value is delivered (e.g., passed in a foreign
+  call that has returned). For base pointer types, the release
+  function is @rhombus(Function.black_box), which is useful because it
+  keeps a pointer live if it is subject to garbage collection. A release
+  function could explicitly deallocate a pointer that was allocated by
+  the @rhombus(~racket_to_c) function, but a release function is not
+  called if control somehow escapes or the current thread is forcibly
+  terminated.}
+
  @item{@rhombus(~c_to_racket): Provides a conversion function toward
   Rhombus as the result of the @rhombus(c_to_racket_body) sequence. This
   converter is applied to a Rhombus representation of
@@ -106,25 +125,6 @@
   of conversion should be a Rhombus representation for @rhombus(id). If
   @rhombus(~c_to_racket) is not provided, conversion is the identity
   function.}
-
- @item{@rhombus(~release): Provides a function that finalizes conversion
-  from Rhombus to C as the result of @rhombus(release_body) sequence. The
-  function is applied to the result of @rhombus(parent_type)'s release
-  function after the C value is delivered (e.g., passed in a foreign
-  procedure call that has returned). For base pointer types, the release
-  function is @rhombus(Function.black_box), which is useful because it
-  keeps a pointer live if it is subject to garbage collection. A release
-  procedure could explicitly deallocate a pointer that was allocated by
-  the @rhombus(~racket_to_c) procedure, but a release function is not
-  called if control somehow escapes or the current thread is forcibly
-  terminated.}
-
- @item{@rhombus(~racket_to_c): Provides a conversion function toward C
-  as the result of @rhombus(racket_to_c_body) sequence. This converter is
-  applied to a Rhombus value that is supplied for a @rhombus(id) type. The
-  result of conversion should be a Rhombus representation for
-  @rhombus(parent_type). If @rhombus(~racket_to_c) is not provided,
-  conversion is the identity function.}
 
 )
 
@@ -277,7 +277,7 @@
 ){
 
  Describes a type with a platform-specific representation or a
- platform-specific choice of procedure @tech{ABI}, enabling a
+ platform-specific choice of function @tech{ABI}, enabling a
  compile-time (later than expand-time) choice. The symbol form of
  @rhombus(key) corresponds to a method of
  @rhombus(system, ~at rhombus/namespace), and each @rhombus(val) must be
