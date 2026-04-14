@@ -9,6 +9,8 @@
     import ffi open
 )
 
+@(def foreign_type = @rhombus(foreign.type))
+
 @title(~tag: "pointer"){Foreign Pointers}
 
 A @deftech{pointer} object encapsulates a memory address and a
@@ -41,23 +43,33 @@ garbage collector is independent of its tags.
     gcable
   type.macro '$type *'
   type.macro '$type /gcable'
+  annot.macro 'GCable_ptr_t'
 ){
 
  The @rhombus_t(*) postfix type operator describes a pointer type that
  is tagged with the name of @rhombus_t(type) with a @litchar{*} suffix.
  If @rhombus_t(type) is a pointer type, then its ``name'' for this
  purpose is the tag used for its pointers. Otherwise, it is the name as
- defined via @rhombus(foreign.type).
+ defined via @foreign_type. If @rhombus(type) is a @rhombus_t(struct) or
+ @rhombus_t(union) type, the new type @rhombus_t(type*) gets the same
+ static information as @rhombus(type).
 
- The @rhombus_t(/gcable) type operator (more precisely, a @rhombus(/)
- operator that expects a subsequent literal @rhombus_t(gcable) always)
- requires that the argument @rhombus(type) is a pointer type, and it
- describes a type that is the same, but that represents an address within
- memory that is managed by Rhombus's garbage collector. The Rhombus-to-C
- conversion of a @rhombus_t(/gcable) pointer is no different that for the
- original pointer type (i.e., it is not required to refer to a
- garbage-collectable address), but it affects the handling of a C address
- representation to a Rhombus representation.
+ The @as_indexed{@rhombus_t(/gcable)} type operator (more precisely, a
+ @rhombus_t(/) operator that expects a subsequent literal
+ @rhombus_t(gcable) always) requires that the argument @rhombus(type) is
+ a pointer type, and it describes a type that is the same, but that
+ represents an address within memory that is managed by Rhombus's garbage
+ collector. The Rhombus-to-C conversion of a @rhombus_t(/gcable) pointer
+ is no different that for the original pointer type (i.e., it is not
+ required to refer to a garbage-collectable address), but it affects the
+ handling of a C address representation to a Rhombus representation.
+
+ The @rhombus(GCable_ptr_t, ~annot) annotation is satisfied only by
+ pointer objects that are allowed to reference memory that is managed
+ Racket's garbage collector. In contrast,
+ @rhombus(foreign.type ptr_t/gcable, ~annot) as an annotation is
+ satisified by any pointer object, since @rhombus_t(ptr_t/gcable) accepts any
+ pointer for conversion to C.
 
 }
 
@@ -170,24 +182,97 @@ garbage collector is independent of its tags.
 
 )
 
+@examples(
+  ~eval: ffi_eval,
+  ~repl:
+    def p1 = new int_t
+    mem *p1 := 3
+    mem *p1
+  ~repl:
+    def pm = new ~manual int_t
+    mem *pm := 4
+    free(pm)
+  ~repl:
+    def p3 = new int_t[1+2]
+    mem p3[2] := 20
+    mem p3[2]
+  ~repl:
+    def p1_imm = new ~immobile int_t
+    def i1_imm = ptr_to_uintptr(p1_imm)
+    ~fake:
+      :
+        memory.GC() // probably moves p1, does not move p1_imm
+      #void
+    i1_imm == ptr_to_uintptr(p1_imm)
+  ~repl:
+    def pp = new ~traced int_t*
+    mem pp[0]
+    mem pp[0] := new int_t
+    mem (mem pp[0])[0] := 5
+    ~fake:
+      :
+        memory.GC() // probably moves pp[0]
+      #void
+    mem (mem pp[0])[0]
+  ~repl:
+    def mutable pm = new ~manual int_t
+    mem *pm := 6
+    def pm_i = ptr_to_uintptr(pm)
+    pm := #false
+    ~fake:
+      :
+        memory.GC() // does not affect manual allocation
+      #void
+    pm := uintptr_to_ptr(pm_i)
+    mem *pm
+    free(pm)
+)
+
 }
 
 @doc(
   ~nonterminal:
     size_expr: block expr
     maybe_mode: new
-    type: * type ~at rhombus/ffi/type
+    to_type: * type ~at rhombus/ffi/type
   expr.macro 'malloc $maybe_mode $maybe_as ($size_expr)'
   grammar maybe_as
-  | ~as $type
+  | ~as $to_type
   | ϵ
 ){
 
  Allocates memory in the same way as @rhombus(new), but where
  @rhombus(size_expr) specifies a size in bytes.
 
- If @rhombus(~as type) is specified, the result pointer is @tech{tag}ged
- as @rhombus(type), where @rhombus(type) must be a pointer type.
+ If @rhombus(~as to_type) is specified, the result pointer is
+ @tech{tag}ged as @rhombus(to_type), where @rhombus(to_type) must be a
+ pointer type, and the @rhombus(malloc) expression has the static
+ information of @rhombus(to_type).
+
+@examples(
+  ~eval: ffi_eval,
+  ~repl:
+    def gp = malloc(64)
+    gp
+    gp is_a foreign.type int_t*
+  ~repl:
+    def p = malloc ~as int_t* (64)
+    p is_a foreign.type int_t*
+    mem *p := 5
+    mem *p
+  ~defn:
+    foreign.struct Point_t(x :: int_t,
+                           y :: int_t)
+  ~repl:
+    def pt0 = malloc(sizeof(Point_t))
+    pt0
+    pt0 is_a Point_t
+    def pt = malloc ~as Point_t* (sizeof(Point_t))
+    pt is_a Point_t
+    pt.x := 1
+    pt.y := 2
+    pt.x + pt.y
+)
 
 }
 
@@ -235,8 +320,8 @@ garbage collector is independent of its tags.
 
  When the @rhombus(* ptr_expr), @rhombus(ptr_expr[index_expr]), or
  @rhombus(& ptr_expr[delta_expr]) form is used, then @rhombus(ptr_expr)
- must have static information to indicate an element type to be used as
- @rhombus(type).
+ must have static information to indicate an element type or
+ pointer-referenced type to be used as @rhombus(type).
 
 @examples(
   ~eval: ffi_eval
@@ -312,7 +397,7 @@ garbage collector is independent of its tags.
  The @rhombus(memcpy) and @rhombus(memmove) functions copy @rhombus(len)
  bytes from the address represented by @rhombus(src) plus
  @rhombus(src_offset) to the address represented by @rhombus(dest) plus
- @rhombus(dest_pffset). In the case of @rhombus{memcpy}, the source and
+ @rhombus(dest_pffset). In the case of @rhombus(memcpy), the source and
  destination regions must not overlap.
 
  The @rhombus(memcpy) function sets @rhombus(len) bytes at the address

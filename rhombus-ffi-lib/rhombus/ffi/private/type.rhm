@@ -63,6 +63,7 @@ space.enforest type:
       pack_generic_pointer
       pack_array
       pack_variable_array
+      repack_type
       unpack_type
       unpack_pointer_element
       unpack_pointer_allocation_element
@@ -107,6 +108,11 @@ space.enforest type:
       pack('[($t), ~array, ($elem_t, $len), $ann]')
     fun pack_variable_array(t :: Term, e_seq, ann :: Syntax) :~ Syntax:
       pack('[#false, ~vararray, ($t, $e_seq), $ann]')
+
+    fun repack_type(t :: Term, prim_type :: Syntax):
+      match unpack(t)
+      | '[$_, $kind, $data, $ann]':
+          pack('[($prim_type), $kind, $data, $ann]')
 
     fun unpack_type(t :: Syntax, ~void_ok = #false):
       match unpack(t)

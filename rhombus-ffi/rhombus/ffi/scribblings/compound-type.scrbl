@@ -53,9 +53,11 @@
  @item{The @rhombus(id) is defined as an annotation that recognizes
   pointers tagged with @rhombus(id).}
 
- @item{The @rhombus(id) is defined as a veneer. Each @rhombus(field_id)
-  is bound as a field of the veneer that can be used to access or update
-  the corresponding field in an instance of the @rhombus_t(struct).
+ @item{The @rhombus(id) is defined as a veneer, and @rhombus(id) as a
+  type implies the static information of @rhombus(id) as a veneer. Each
+  @rhombus(field_id) is bound as a field of the veneer that can be used to
+  access or update the corresponding field in an instance of the
+  @rhombus_t(struct).
 
   @itemlist(
 
@@ -158,6 +160,28 @@
     def g3  = new grade_t(score: 0.0)
     g3.pass_fail
 )
+
+}
+
+
+@doc(
+  ~nonterminal:
+    type: * type ~at rhombus/ffi/type
+    arg: -> ~at rhombus/ffi/type
+  type.macro '#%parens ($type)'
+  type.macro '#%parens ($arg, ...)'
+  type.macro '#%parens ($arg, ..., ~varargs, $arg, ...)'
+){
+
+ The @rhombus_t(#%parens) prefix operator is an implicit form and not
+ usually written explicitly: @rhombus_t((#,(@rhombus(group, ~var)), ...))
+ is equivalent to @rhombus_t(#%parens (#,(@rhombus(group, ~var)), ...)).
+
+ A type form @rhombus((type)) is equivalent to @rhombus(type).
+
+ A @rhombus((arg, ...)) or @rhombus((arg, ..., ~varargs, arg, ...)) form
+ is allowed as a ``type'' only on the left-hand side of the
+ @rhombus_t(->) operator.
 
 }
 

@@ -20,6 +20,7 @@ import:
       #{ffi2-free} as ffi2_free
       #{ptr_t->uintptr}
       #{uintptr->ptr_t}
+      #{ptr_t/gcable?}
 
 export:
   ptr_t
@@ -36,6 +37,7 @@ export:
   cast
   ptr_to_uintptr
   uintptr_to_ptr
+  GCable_ptr_t
 
 annot.macro
 | 'ptr_t/gcable':
@@ -56,9 +58,14 @@ type.macro '$t *':
   | type_meta.unpack_void(t):
       type_meta.pack_generic_pointer('ffi2_void_t_star')
   | ~else:
+      let in_t = t
       let ann = type_meta.unpack_annot(t)
       let t = type_meta.unpack_type(t)
-      type_meta.pack_pointer('[ffi2_array, $t, #{*}]', t, 'PointerOf($ann, $t, #false)')
+      type_meta.pack_pointer('[ffi2_array, $t, #{*}]', t,
+                             if (type_meta.unpack_struct_proc_ids(in_t)
+                                   || type_meta.unpack_union_proc_ids(in_t))
+                             | type_meta.unpack_annot(in_t)
+                             | 'PointerOf($ann, $t, #false)')
         .relocate_span([stx])
 
 type.macro '$t **':
@@ -74,17 +81,9 @@ type.macro '$t ***':
 type.macro '$t /gcable':
   ~all_stx: stx
   ~stronger_than: ~other
-  cond
-  | type_meta.unpack_generic_pointer(t):
-      type_meta.pack_generic_pointer('[ffi2_gcable, $(type_meta.unpack_type(t))]')
-  | ~else:
-      let elem_t = type_meta.unpack_pointer_element(#false, t)
-      let ann = type_meta.unpack_annot(t)
-      unless elem_t
-      | syntax_meta.error("expected a pointer type", stx, t)
-      let t = type_meta.unpack_type(t)
-      type_meta.pack_pointer('[ffi2_gcable, $t]', elem_t, ann)
-        .relocate_span([stx])
+  unless type_meta.unpack_pointer_type(#false, t)
+  | syntax_meta.error("expected a pointer type", stx, t)
+  type_meta.repack_type(t, '[ffi2_gcable, $(type_meta.unpack_type(t))]')
 
 type.macro '$t #%index [$n_seq ...]':
   ~all_stx: stx
@@ -120,18 +119,20 @@ meta:
 expr.macro
 | 'malloc $(m :: MallocMode) ~as ($(t :: type_meta.Parsed)) ($(e :: expr_meta.Parsed))':
     ~op_stx: self
+    ~all_stx: stx
     add_annot(
       expr_meta.pack_s_exp(['ffi2_malloc', m.mode, wrap_size_check(self, e),
-                            '~as', type_meta.s_exp(type_meta.unpack_type(t))]),
+                            '~as', type_meta.s_exp(type_meta.unpack_pointer_type(stx, t))]),
       type_meta.unpack_annot(t)
     )
 | 'malloc $(m :: MallocMode) ~as $t ... ($e ...)':
     ~op_stx: self
+    ~all_stx: stx
     let '$(t :: type_meta.Parsed)' = '$t ...'
     let '$(e :: expr_meta.Parsed)' = '$e ...'
     add_annot(
       expr_meta.pack_s_exp(['ffi2_malloc', m.mode, wrap_size_check(self, e),
-                            '~as', type_meta.s_exp(type_meta.unpack_type(t))]),
+                            '~as', type_meta.s_exp(type_meta.unpack_pointer_type(stx, t))]),
       type_meta.unpack_annot(t)
     )
 | 'malloc $(m :: MallocMode) ($(e :: expr_meta.Parsed))':
@@ -343,6 +344,10 @@ fun ptr_to_uintptr(p :: ptr_t) :~ Int:
 
 fun uintptr_to_ptr(i :: uintptr_t):
   #{uintptr->ptr_t}(i)
+
+annot.macro 'GCable_ptr_t':
+  annot_meta.pack_predicate('#{ptr_t/gcable?}',
+                            '()')
 
 meta fun pointer_element_ann(t):
   let '$(ann :: annot_meta.Parsed)' = type_meta.unpack_annot(t)

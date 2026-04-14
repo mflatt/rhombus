@@ -16,6 +16,14 @@ check pt is_a Point_t ~is #true
 check pt is_a foreign.type Point_t* ~is #true
 check pt.x < pt.y ~is #false
 
+block:
+  def alt_pt :: Point_t = dynamic(pt)
+  alt_pt.x := 11  
+
+block:
+  def alt_pt :: (foreign.type Point_t*) = dynamic(pt)
+  alt_pt.x := 11
+
 foreign.union Grade_t(score :: double_t,
                       pass :: bool_t)
 def g = new Grade_t(score: 200.0)

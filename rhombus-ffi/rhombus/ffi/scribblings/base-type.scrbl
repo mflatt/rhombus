@@ -2,6 +2,13 @@
 @(import:
     "common.rhm" open)
 
+@(def ffi_eval = make_rhombus_eval())
+@examples(
+  ~eval: ffi_eval
+  ~hidden:
+    import ffi open
+)
+
 @title(~tag: "ffi-base-type"){Base Foreign Types}
 
 @doc(
@@ -27,10 +34,10 @@
   foreign.type ptr_t
 ){
 
- A generic pointer. On the C side, a generic pointer is represented as an
- address with the same representation as @tt{void*}. On the Rhombus side,
- a generic pointer is represented as a @tech{pointer} object. See also
- @secref("pointer").
+ The @rhombus_t(ptr_t) type describes a generic pointer. On the C side,
+ a generic pointer is represented as an address with the same
+ representation as @tt{void*}. On the Rhombus side, a generic pointer is
+ represented as a @tech{pointer} object. See also @secref("pointer").
 
  When an address is converted from C to Rhombus, then @rhombus_t(ptr_t)
  produces a pointer object that references memory (assumed to be) not
@@ -169,6 +176,16 @@
  The @rhombus_t(string_t) or @rhombus_t(path_t) types then convert that
  byte string to a string or path, respectively.
 
+@examples(
+  ~eval: ffi_eval
+  ~repl:
+    cast ~from (bytes_t) ~to (bytes_t) #"apple\0pie"
+    cast ~from (bytes_t) ~to (string_t) #"apple\0pie"
+    mem (cast ~from (bytes_ptr_t) ~to (byte_t*) #"apple\0pie")[6]
+    cast ~from (string_t) ~to (path_t) "source"
+    cast ~from (path_t) ~to (bytes_t) Path("source")
+)
+
 }
 
 
@@ -183,3 +200,5 @@
  Rhombus/Racket runtime system and cooperating with it.
 
 }
+
+@close_eval(ffi_eval)
