@@ -347,7 +347,7 @@ the value from a raw pointer to a string:
   cast (string_t)buffer
 )
 
-Conversion via the @rhombus(string_t) type causes the data referenced
+Conversion via the @rhombus_t(string_t) type causes the data referenced
 by the original pointer to be copied (and UTF-8 decoded), so the
 memory referenced by @rhombus(buffer) is no longer needed. Since the
 buffer was allocated in @rhombus(~manual) mode, use @rhombus(free)

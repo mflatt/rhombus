@@ -218,6 +218,12 @@
  Returns the number of bytes used for the C representation of
  @rhombus(type).
 
+@examples(
+  ~eval: ffi_eval
+  ~repl:
+    sizeof(int32_t)
+)
+
 }
 
 @doc(
@@ -233,15 +239,25 @@
  type; the result is always @rhombus(0) in the case of a @rhombus(union)
  type.
 
+@examples(
+  ~eval: ffi_eval
+  ~defn:
+    foreign.struct Point_t(x :: int_t,
+                           y :: int_t)
+  ~repl:
+    offsetof(Point_t, x)
+    offsetof(Point_t, y)
+)
+
 }
 
 @doc(
   ~nonterminal:
-    type: * type ~at rhombus/ffi/type
-  annot.macro 'foreign.type $type'
+    at_type: * type ~at rhombus/ffi/type
+  annot.macro 'foreign.type $at_type'
 ){
 
- Satisfied by values that are valid Racket representations of @rhombus(type).
+ Satisfied by values that are valid Racket representations of @rhombus(at_type).
 
  A type name typically doubles as an annotation itself, but
  @rhombus(foreign.type, ~annot) can be used with more complex type forms,

@@ -211,10 +211,10 @@ garbage collector is independent of its tags.
     delta_expr: block expr
     type: * ~at rhombus/ffi/type
     ptr_type: * type ~at rhombus/ffi/type
-  expr.macro 'mem * $ptr_expr'
-  expr.macro 'mem * $ptr_expr := $val_expr'
-  expr.macro 'mem *($ptr_type)$ptr_expr'
-  expr.macro 'mem *($ptr_type)$ptr_expr := $val_expr'
+  expr.macro 'mem #,(@rhombus_t(*))$ptr_expr'
+  expr.macro 'mem #,(@rhombus_t(*))$ptr_expr := $val_expr'
+  expr.macro 'mem #,(@rhombus_t(*))($ptr_type)$ptr_expr'
+  expr.macro 'mem #,(@rhombus_t(*))($ptr_type)$ptr_expr := $val_expr'
   expr.macro 'mem $ptr_expr[$index_expr]'
   expr.macro 'mem $ptr_expr[$index_expr] := $val_expr'
   expr.macro 'mem & $ptr_expr[$delta_expr]'

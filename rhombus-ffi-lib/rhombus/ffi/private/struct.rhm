@@ -1,6 +1,7 @@
 #lang rhombus/static/and_meta
 import:
   "type.rhm" open
+  "literal.rhm" open
   lib("ffi2/main.rkt"):
     expose:
       #{define-ffi2-type}
@@ -55,11 +56,11 @@ meta fun parse_compound(kind, name, [field_id, ...], [field_t, ...]):
        export fun is_a(v): $ptr_pred_id(v)
    »'
 
-defn.macro 'c_struct $(name :: IdentifierName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
+defn.macro 'c_struct $(name :: IdentifierName)($(field_id :: Identifier) $(_ :: Colons) $(field_t :: type_meta.Parsed),
                                                ...)':
   parse_compound(#'struct, name, [field_id, ...], [field_t, ...])
 
-defn.macro 'c_union $(name :: IdentifierName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
+defn.macro 'c_union $(name :: IdentifierName)($(field_id :: Identifier) $(_ :: Colons) $(field_t :: type_meta.Parsed),
                                               ...)':
   parse_compound(#'union, name, [field_id, ...], [field_t, ...])
 
@@ -82,11 +83,11 @@ meta fun parse_compound_type(kind, name, [field_id, ...], [field_t, ...]):
                         ...]',
                       'Never')
 
-type.macro 'struct $(name :: MaybeName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
+type.macro 'struct $(name :: MaybeName)($(field_id :: Identifier) $(_ :: Colons) $(field_t :: type_meta.Parsed),
                                         ...)':
   parse_compound_type(#'struct, name, [field_id, ...], [field_t, ...])
 
 
-type.macro 'union $(name :: MaybeName)($(field_id :: Identifier) :: $(field_t :: type_meta.Parsed),
+type.macro 'union $(name :: MaybeName)($(field_id :: Identifier) $(_ :: Colons) $(field_t :: type_meta.Parsed),
                                        ...)':
   parse_compound_type(#'union, name, [field_id, ...], [field_t, ...])

@@ -2,6 +2,7 @@
 import:
   "type.rhm" open
   "lib.rhm".Lib
+  "literal.rhm" open
   "arrow.rhm"!class.parse_as_arrow
   lib("ffi2/main.rkt"):
     expose:
@@ -191,12 +192,12 @@ defn.macro 'c_def $tail ...':
 meta syntax_class Header:
   description: "foreign-function definition"
   fields: id args [r_seq, ...] ret ret_is_checked
-| '$(id :: Identifier) $(args && '($arg, ...)') $(ann_op :: annot_meta.BindOp) $r_seq ... :: $ret_seq ...':
+| '$(id :: Identifier) $(args && '($arg, ...)') $(_ :: Colons) $r_seq ... $(ann_op :: annot_meta.BindOp) $ret_seq ...':
     field ret = '$ret_seq ...'
     field ret_is_checked = ann_op.is_checked
-| '$(id :: Identifier) $(args && '($arg, ...)') $(ann_op :: annot_meta.BindOp) $r_seq ...':
+| '$(id :: Identifier) $(args && '($arg, ...)') $(_ :: Colons) $r_seq ...':
     field ret = #false
-    field ret_is_checked = ann_op.is_checked
+    field ret_is_checked = #false
 
 meta fun parse_c_fun(self, stx, lib = #false, default_fail_expr = #false, default_wrap_expr = #false):
   match stx

@@ -2,6 +2,7 @@
 import:
   "type.rhm" open
   "abi.rhm"!internal.abi_meta
+  "literal.rhm" open
   lib("ffi2/main.rkt") as ffi2:
     expose:
       -> as arrow
@@ -22,17 +23,17 @@ meta syntax_class Argument:
     t
     annot
     arg
-| '$(id :: Identifier) :: $t_seq ... = $e_seq ...':
+| '$(id :: Identifier) $(_ :: Colons) $t_seq ... $(_ :: Equal) $e_seq ...':
     def '$(t :: type_meta.Parsed)' = '$t_seq ...'
     def e = expr_meta.pack_expr('$e_seq ...')
     field arg: '[~do, [$(defn_meta.pack_defn('def $id = $e'))], [$(type_meta.unpack_type(t)), #{=}, $id]]'
     field annot = #false
     field t = #false
-| '$(id :: Identifier) :: $(i_t :: type_meta.Parsed)':
+| '$(id :: Identifier) $(_ :: Colons) $(i_t :: type_meta.Parsed)':
     field arg: '[[$id, #{:}, $(type_meta.unpack_type(i_t))]]'
     field annot = type_meta.unpack_annot(i_t)
     field t = #false
-| '$t_seq ... = $e_seq ...':
+| '$t_seq ... $(_ :: Equal) $e_seq ...':
     def '$(t :: type_meta.Parsed)' = '$t_seq ...'
     def e = expr_meta.pack_expr('$e_seq ...')
     field arg: '[[$(type_meta.unpack_type(t)), #{=}, $e]]'
@@ -66,7 +67,7 @@ meta syntax_class Errno:
     field errno = ['[$id, #{:}, ~errno]']
 | '~get_last_error':
     field errno = ['~#{get-last-error}']
-| '$(id :: Identifier) :: ~get_last_error':
+| '$(id :: Identifier) $(_ :: Colons) ~get_last_error':
     field errno = ['[$id, #{:}, ~#{get-last-error}]']
 
 meta syntax_class MaybePost:
@@ -103,11 +104,11 @@ meta syntax_class Result:
     res
     annot
     errno :: List
-| '($(id :: Identifier) :: $(t :: type_meta.Parsed))':
+| '($(id :: Identifier) $(_ :: Colons) $(t :: type_meta.Parsed))':
     field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field annot: type_meta.unpack_annot(t)
     field errno: []
-| '($(id :: Identifier) :: $(t :: type_meta.Parsed), $(e :: Errno))':
+| '($(id :: Identifier) $(_ :: Colons) $(t :: type_meta.Parsed), $(e :: Errno))':
     field res: '[$id, #{:}, $(type_meta.unpack_type(t, ~void_ok: #true))]'
     field annot: type_meta.unpack_annot(t)
     field errno: e.errno

@@ -213,8 +213,12 @@ meta fun build_assign_inferred_type(stx, self, e, make_offset, e_r):
                         make_offset(u_len),
                         e_r])
 
+
+meta export syntax_class Asterisk
+| '$(bound_as type_meta.space: '*')'
+
 expr.macro
-| 'mem *($(maybe_t :: MaybeType)) $(lhs :: NotAssign) ... := $tl ...':
+| 'mem $(_ :: Asterisk)($(maybe_t :: MaybeType)) $(lhs :: NotAssign) ... := $tl ...':
     ~op_stx: self
     ~all_stx: stx
     let '$(t :: type_meta.Parsed)' = maybe_t
@@ -225,7 +229,7 @@ expr.macro
                                  type_meta.s_exp(type_meta.unpack_pointer_element(stx, t)),
                                  e]),
            '$e.tail ...')
-| 'mem *($(maybe_t :: MaybeType)) $tl ...':
+| 'mem $(_ :: Asterisk)($(maybe_t :: MaybeType)) $tl ...':
     ~op_stx: self
     ~all_stx: stx
     let '$(t :: type_meta.Parsed)' = maybe_t
@@ -237,7 +241,7 @@ expr.macro
              pointer_element_ann(t)
            ),
            '$e.tail ...')
-| 'mem * $(lhs :: NotAssign) ... := $tl ...':
+| 'mem $(_ :: Asterisk)$(lhs :: NotAssign) ... := $tl ...':
     ~op_stx: self
     ~all_stx: stx
     let '$(e :: expr_meta.Parsed)' = '$lhs ...'
@@ -246,7 +250,7 @@ expr.macro
                                       fun (u_len): expr_meta.pack_expr('0'),
                                       e_r),
            '')
-| 'mem * $tl ...':
+| 'mem $(_ :: Asterisk)$tl ...':
     ~op_stx: self
     ~all_stx: stx
     let '$(e :: expr_meta.AfterInfixParsed('*'))' = '$tl ...'

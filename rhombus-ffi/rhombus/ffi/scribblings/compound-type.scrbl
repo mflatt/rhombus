@@ -19,11 +19,11 @@
     field_id: block id
     field_type: * type ~at rhombus/ffi/type
   type.macro 'struct $maybe_tag (
-                $field_id :: $field_type,
+                $field_id #,(@rhombus(::, ~bind)) $field_type,
                 ...
               )'
   defn.macro 'foreign.struct $id (
-                $field_id :: $field_type,
+                $field_id #,(@rhombus(::, ~bind)) $field_type,
                 ...
               )'
   grammar maybe_tag

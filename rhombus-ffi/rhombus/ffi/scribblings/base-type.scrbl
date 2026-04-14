@@ -64,6 +64,7 @@
 }
 
 @doc(
+  foreign.type byte_t
   foreign.type short_t
   foreign.type ushort_t
   foreign.type int_t
