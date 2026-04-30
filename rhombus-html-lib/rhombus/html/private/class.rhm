@@ -1,0 +1,62 @@
+#lang rhombus/static/and_meta
+import:
+  "lexer.rhm":
+    expose:
+      Attribute
+  "parser.rhm":
+    expose:
+      Comment
+      DocumentType
+
+export:
+  Document
+  DocumentType
+  Element
+  Text
+  Comment
+  Attribute
+
+module repack:
+  export:
+    repack
+
+class Element(name :: String,
+              attributes :: List.of(Attribute),
+              children :: List,
+              self_closing :: Boolean,
+              namespace :: Symbol,
+              template_content :: maybe(List))
+
+class Text(data :: String)
+
+enum QuirksMode
+| no_quirks
+| quirks
+| limited_quirks
+
+class Document(children :: List,
+               doctype :: maybe(DocumentType),
+               quirks_mode :: QuirksMode):
+  export:
+    QuirksMode
+
+fun repack(v):
+  match v
+  | d :: parser.Document:
+      Document(d.children.map(repack),
+               d.doctype,
+               d.quirks_mode)
+  | e :: parser.Element:
+      Element(e.name,
+              e.attributes,
+              e.children.map(repack),
+              e.self_closing,
+              e.namespace,
+              match e.content
+              | #false: #false
+              | c :: parser.TemplateContents:
+                  c.children.map(repack))
+  | e :: parser.Text:
+      Text(e.mutable_data)
+  | ~else:
+      v
