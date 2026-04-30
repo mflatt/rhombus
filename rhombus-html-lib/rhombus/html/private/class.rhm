@@ -57,6 +57,6 @@ fun repack(v):
               | c :: parser.TemplateContents:
                   c.children.map(repack))
   | e :: parser.Text:
-      Text(e.mutable_data)
+      Text(e.get_string())
   | ~else:
       v

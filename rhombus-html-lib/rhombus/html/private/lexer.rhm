@@ -1,6 +1,7 @@
 #lang rhombus/static/and_meta
 import:
   "entities.rhm"
+  lib("racket/base.rkt") as rkt
 
 export:
   Token
@@ -31,7 +32,7 @@ export:
 // named-character-reference state) need multi-character lookahead and don't
 // fit the consume-and-dispatch pattern, so they're written as plain Rhombus
 // functions. The macro and the plain functions interoperate transparently
-// because both are just `fun(lex :: Lexer) -> next-state-or-false`.
+// because both are just `fun(lex :~ Lexer) -> next-state-or-false`.
 // ============================================================================
 
 
@@ -63,17 +64,26 @@ alias 'Token.Character': 'TokenCharacter'
 // ----------------------------------------------------------------------------
 // In-progress builders
 
-class TagBuilder(
-  kind,                              // #'start | #'end
-  mutable name :: String,
-  mutable self_closing :: Boolean,
-  mutable attributes :: List         // List(AttributeBuilder), reversed during build
-)
-
-class AttributeBuilder(mutable name :: String, mutable value :: String)
-
 // Finalized attribute as carried by emitted tokens
 class Attribute(name :: String, value :: String)
+
+class TagBuilder(
+  kind,                              // #'start | #'end
+  mutable name_accum :: Port.Output.String,
+  mutable self_closing :: Boolean,
+  mutable attributes :~ List.of(Attribute)
+):
+  field name_done = #false
+  method get_name():
+    name_done || (block:
+                    name_done := name_accum.get_string()
+                    rkt.#{datum-intern-literal}(name_done))
+
+class AttributeBuilder(name :~ Port.Output.String,
+                       value :~ Port.Output.String):
+  method finalize() :~ Attribute:
+    Attribute(rkt.#{datum-intern-literal}(name.get_string()),
+              value.get_string())
 
 class CommentBuilder(mutable data :: String)
 
@@ -174,76 +184,76 @@ class Lexer(port :: Port.Input):
 // argument. State bodies bind the lexer with `state NAME(lex)` (see the macro
 // below) and pass it explicitly.
 
-fun emit(lex :: Lexer, t :: Token):
+fun emit(lex :~ Lexer, t :: Token):
   // Track last-emitted start tag's name for "appropriate end tag" check.
   match t
   | st :: Token.StartTag: lex.last_start_tag_name := st.name
   | _: #void
   lex.tokens := List.add(lex.tokens, t)
 
-fun set_return_state(lex :: Lexer, s):
+fun set_return_state(lex :~ Lexer, s):
   lex.return_state := s
 
-fun parse_error(lex :: Lexer, name):
+fun parse_error(lex :~ Lexer, name):
   lex.errors := List.add(lex.errors, name)
 
 // Push the just-consumed char back, then yield `s` as the next state.
-fun reconsume_in(lex :: Lexer, s):
+fun reconsume_in(lex :~ Lexer, s):
   lex.peeked := List.cons(lex.last_char, lex.peeked)
   s
 
 // ---- tag building ----------------------------------------------------------
 
-fun create_start_tag(lex :: Lexer):
-  lex.current_tag := TagBuilder(#'start, "", #false, [])
+fun create_start_tag(lex :~ Lexer):
+  lex.current_tag := TagBuilder(#'start, Port.Output.open_string(), #false, [])
 
-fun create_end_tag(lex :: Lexer):
-  lex.current_tag := TagBuilder(#'end, "", #false, [])
+fun create_end_tag(lex :~ Lexer):
+  lex.current_tag := TagBuilder(#'end, Port.Output.open_string(), #false, [])
 
-fun append_to_tag_name(lex :: Lexer, c :: Char):
+fun append_to_tag_name(lex :~ Lexer, c :: Char):
   let t :: TagBuilder = lex.current_tag
-  t.name := t.name ++ to_string(c)
+  t.name_accum.write_char(c)
 
 // Start a new attribute on the current tag. The previous current_attribute,
 // if any, is pushed onto the tag's attribute list.
-fun start_new_attribute(lex :: Lexer):
+fun start_new_attribute(lex :~ Lexer):
   finish_current_attribute(lex)
-  let a = AttributeBuilder("", "")
+  let a = AttributeBuilder(Port.Output.open_string(), Port.Output.open_string())
   lex.current_attribute := a
 
-fun finish_current_attribute(lex :: Lexer):
+fun finish_current_attribute(lex :~ Lexer):
   let t :: TagBuilder = lex.current_tag
   match lex.current_attribute
   | #false: #void
   | a :: AttributeBuilder:
       // Spec says: if there's another attribute with the same name, this one
       // is a duplicate-attribute parse error and is dropped from the token.
+      let a = a.finalize()
       let dup:
-        for any (existing :: AttributeBuilder in t.attributes):
+        for any (existing :~ Attribute in t.attributes):
           existing.name == a.name
       cond
       | dup:
           parse_error(lex, #'duplicate_attribute)
       | ~else:
-          t.attributes := List.cons(a, t.attributes)
+          t.attributes := t.attributes.add(a)
       lex.current_attribute := #false
 
-fun append_to_current_attribute_name(lex :: Lexer, c :: Char):
-  let a :: AttributeBuilder = lex.current_attribute
-  a.name := a.name ++ to_string(c)
+fun append_to_current_attribute_name(lex :~ Lexer, c :: Char):
+  let a :~ AttributeBuilder = lex.current_attribute
+  a.name.write_char(c)
 
-fun append_to_current_attribute_value(lex :: Lexer, c :: Char):
-  let a :: AttributeBuilder = lex.current_attribute
-  a.value := a.value ++ to_string(c)
+fun append_to_current_attribute_value(lex :~ Lexer, c :: Char):
+  let a :~ AttributeBuilder = lex.current_attribute
+  a.value.write_char(c)
 
-fun emit_current_tag(lex :: Lexer):
+fun emit_current_tag(lex :~ Lexer):
   finish_current_attribute(lex)
   let t :: TagBuilder = lex.current_tag
-  let attrs = for List (a :: AttributeBuilder in List.reverse(t.attributes)):
-    Attribute(a.name, a.value)
+  let attrs = t.attributes
   let tok:
     match t.kind
-    | #'start: Token.StartTag(t.name, t.self_closing, attrs)
+    | #'start: Token.StartTag(t.get_name(), t.self_closing, attrs)
     | #'end:
         // Spec: end tag with attributes / self-closing -> parse error
         if t.self_closing
@@ -252,93 +262,93 @@ fun emit_current_tag(lex :: Lexer):
         if !(attrs == [])
         | parse_error(lex, #'end_tag_with_attributes)
         | #void
-        Token.EndTag(t.name, t.self_closing, attrs)
+        Token.EndTag(t.get_name(), t.self_closing, attrs)
   lex.current_tag := #false
   emit(lex, tok)
 
 // "An appropriate end tag token is one whose tag name matches the tag name of
 //  the last start tag to have been emitted from this tokenizer."
-fun is_appropriate_end_tag(lex :: Lexer) :: Boolean:
+fun is_appropriate_end_tag(lex :~ Lexer) :: Boolean:
   let t :: TagBuilder = lex.current_tag
-  lex.last_start_tag_name == t.name
+  lex.last_start_tag_name == t.get_name()
 
 // ---- comment building ------------------------------------------------------
 
-fun create_comment(lex :: Lexer, initial :: String):
+fun create_comment(lex :~ Lexer, initial :: String):
   lex.current_comment := CommentBuilder(initial)
 
-fun append_to_comment(lex :: Lexer, c :: Char):
+fun append_to_comment(lex :~ Lexer, c :: Char):
   let cm :: CommentBuilder = lex.current_comment
   cm.data := cm.data ++ to_string(c)
 
-fun append_str_to_comment(lex :: Lexer, s :: String):
+fun append_str_to_comment(lex :~ Lexer, s :: String):
   let cm :: CommentBuilder = lex.current_comment
   cm.data := cm.data ++ s
 
-fun emit_current_comment(lex :: Lexer):
+fun emit_current_comment(lex :~ Lexer):
   let cm :: CommentBuilder = lex.current_comment
   lex.current_comment := #false
   emit(lex, Token.Comment(cm.data))
 
 // ---- doctype building ------------------------------------------------------
 
-fun create_doctype(lex :: Lexer):
+fun create_doctype(lex :~ Lexer):
   lex.current_doctype := DoctypeBuilder(#false, #false, #false, #false)
 
-fun set_doctype_name_to(lex :: Lexer, c :: Char):
+fun set_doctype_name_to(lex :~ Lexer, c :: Char):
   let d :: DoctypeBuilder = lex.current_doctype
   d.name := to_string(c)
 
-fun append_to_doctype_name(lex :: Lexer, c :: Char):
+fun append_to_doctype_name(lex :~ Lexer, c :: Char):
   let d :: DoctypeBuilder = lex.current_doctype
   d.name := (d.name :: String) ++ to_string(c)
 
-fun set_doctype_public_id_empty(lex :: Lexer):
+fun set_doctype_public_id_empty(lex :~ Lexer):
   (lex.current_doctype :: DoctypeBuilder).public_id := ""
 
-fun append_to_doctype_public_id(lex :: Lexer, c :: Char):
+fun append_to_doctype_public_id(lex :~ Lexer, c :: Char):
   let d :: DoctypeBuilder = lex.current_doctype
   d.public_id := (d.public_id :: String) ++ to_string(c)
 
-fun set_doctype_system_id_empty(lex :: Lexer):
+fun set_doctype_system_id_empty(lex :~ Lexer):
   (lex.current_doctype :: DoctypeBuilder).system_id := ""
 
-fun append_to_doctype_system_id(lex :: Lexer, c :: Char):
+fun append_to_doctype_system_id(lex :~ Lexer, c :: Char):
   let d :: DoctypeBuilder = lex.current_doctype
   d.system_id := (d.system_id :: String) ++ to_string(c)
 
-fun set_doctype_force_quirks(lex :: Lexer):
+fun set_doctype_force_quirks(lex :~ Lexer):
   (lex.current_doctype :: DoctypeBuilder).force_quirks := #true
 
-fun emit_current_doctype(lex :: Lexer):
+fun emit_current_doctype(lex :~ Lexer):
   let d :: DoctypeBuilder = lex.current_doctype
   lex.current_doctype := #false
   emit(lex, Token.Doctype(d.name, d.public_id, d.system_id, d.force_quirks))
 
 // ---- temp buffer (script-data and char references) -------------------------
 
-fun temp_buffer_clear(lex :: Lexer):
+fun temp_buffer_clear(lex :~ Lexer):
   lex.temp_buffer := ""
 
-fun temp_buffer_append(lex :: Lexer, c :: Char):
+fun temp_buffer_append(lex :~ Lexer, c :: Char):
   lex.temp_buffer := lex.temp_buffer ++ to_string(c)
 
-fun temp_buffer_append_str(lex :: Lexer, s :: String):
+fun temp_buffer_append_str(lex :~ Lexer, s :: String):
   lex.temp_buffer := lex.temp_buffer ++ s
 
 // Emit each character in the temp buffer as a character token.
-fun temp_buffer_emit_as_character_tokens(lex :: Lexer):
+fun temp_buffer_emit_as_character_tokens(lex :~ Lexer):
   for (c in lex.temp_buffer):
     emit(lex, Token.Character(c))
 
 // "Was the character reference consumed as part of an attribute?"
-fun consumed_as_part_of_attribute(lex :: Lexer) :: Boolean:
+fun consumed_as_part_of_attribute(lex :~ Lexer) :: Boolean:
   let s = lex.return_state
   (s == attribute_value_double_quoted_state) || (s == attribute_value_single_quoted_state) || (s == attribute_value_unquoted_state)
 
 // Flush the temp buffer either to the current attribute's value (if the
 // reference was inside an attribute) or as character tokens.
-fun flush_code_points_consumed_as_character_reference(lex :: Lexer):
+fun flush_code_points_consumed_as_character_reference(lex :~ Lexer):
   if consumed_as_part_of_attribute(lex)
   | block:
       for (c in lex.temp_buffer):
@@ -357,13 +367,13 @@ fun flush_code_points_consumed_as_character_reference(lex :: Lexer):
 //
 // expands to:
 //
-//   fun name(lex :: Lexer):
-//     match (lex :: Lexer).consume()
+//   fun name(lex :~ Lexer):
+//     match (lex :~ Lexer).consume()
 //     | <pattern> ...: <body>
 //     | ...
 //
 // The lexer name is given at the use site (conventionally `lex`); body
-// patterns and bodies see it as a normal local. The redundant `:: Lexer`
+// patterns and bodies see it as a normal local. The redundant `:~ Lexer`
 // cast in the template is needed because the formal annotation on a
 // pattern-variable binding doesn't propagate static type info to other
 // uses of the same pattern variable within the template.
@@ -374,7 +384,7 @@ fun flush_code_points_consumed_as_character_reference(lex :: Lexer):
 defn.macro 'state $name($lex)
             | $pat ...: $body
             | ...':
-  'fun $name($lex :: Lexer):
+  'fun $name($lex :~ Lexer):
      match $(lex).consume()
      | $pat ...: $body
      | ...'
@@ -621,7 +631,7 @@ state rcdata_end_tag_name_state(lex)
     | ~else: rcdata_anything_else_for_end_tag(lex)
 | Port.eof: rcdata_anything_else_for_end_tag(lex)
 
-fun rcdata_anything_else_for_end_tag(lex :: Lexer):
+fun rcdata_anything_else_for_end_tag(lex :~ Lexer):
   // Treat as "<", "/", and the temp buffer's chars in rcdata_state.
   emit(lex, Token.Character(Char"<"))
   emit(lex, Token.Character(Char"/"))
@@ -679,7 +689,7 @@ state rawtext_end_tag_name_state(lex)
     | ~else: rawtext_anything_else_for_end_tag(lex)
 | Port.eof: rawtext_anything_else_for_end_tag(lex)
 
-fun rawtext_anything_else_for_end_tag(lex :: Lexer):
+fun rawtext_anything_else_for_end_tag(lex :~ Lexer):
   emit(lex, Token.Character(Char"<"))
   emit(lex, Token.Character(Char"/"))
   for (c in lex.temp_buffer):
@@ -740,7 +750,7 @@ state script_data_end_tag_name_state(lex)
     | ~else: script_data_anything_else_for_end_tag(lex)
 | Port.eof: script_data_anything_else_for_end_tag(lex)
 
-fun script_data_anything_else_for_end_tag(lex :: Lexer):
+fun script_data_anything_else_for_end_tag(lex :~ Lexer):
   emit(lex, Token.Character(Char"<"))
   emit(lex, Token.Character(Char"/"))
   for (c in lex.temp_buffer):
@@ -879,7 +889,7 @@ state script_data_escaped_end_tag_name_state(lex)
     | ~else: script_data_escaped_anything_else_for_end_tag(lex)
 | Port.eof: script_data_escaped_anything_else_for_end_tag(lex)
 
-fun script_data_escaped_anything_else_for_end_tag(lex :: Lexer):
+fun script_data_escaped_anything_else_for_end_tag(lex :~ Lexer):
   emit(lex, Token.Character(Char"<"))
   emit(lex, Token.Character(Char"/"))
   for (c in lex.temp_buffer):
@@ -1191,7 +1201,7 @@ state bogus_comment_state(lex)
 //
 // This state doesn't fit the consume-and-dispatch pattern: it peeks ahead 2
 // or 7 characters. We write it as a plain function instead of using `state`.
-fun markup_declaration_open_state(lex :: Lexer):
+fun markup_declaration_open_state(lex :~ Lexer):
   cond
   | lex.try_match_string("--"):
       create_comment(lex, "")
@@ -1424,7 +1434,7 @@ state doctype_name_state(lex)
 //
 // Has multi-character lookahead for "PUBLIC" / "SYSTEM"; written as a plain
 // function.
-fun after_doctype_name_state(lex :: Lexer):
+fun after_doctype_name_state(lex :~ Lexer):
   let c = lex.consume()
   cond
   | c == Char"\t" || c == Char"\n" || c == Char"\f" || c == Char" ":
@@ -1779,7 +1789,7 @@ state cdata_section_end_state(lex)
 def NAMED_ENTITIES :~ Map.of(String, String) = entities.NAMED_ENTITIES
 
 // 13.2.5.72 Character reference state
-fun character_reference_state(lex :: Lexer):
+fun character_reference_state(lex :~ Lexer):
   lex.temp_buffer := "&"
   let c = lex.consume()
   cond
@@ -1810,7 +1820,7 @@ fun character_reference_state(lex :: Lexer):
 // still has the accumulated characters as a prefix. After we've gone past
 // any prefix, find the longest *exact* known prefix and "push back" the
 // extra characters we read.
-fun named_character_reference_state(lex :: Lexer):
+fun named_character_reference_state(lex :~ Lexer):
   // Read while the accumulated string (after `&`) is a strict prefix of
   // some known name OR is itself a known name. Also bail out if we see a
   // non-alphanumeric/non-`;` character.
@@ -1824,10 +1834,8 @@ fun named_character_reference_state(lex :: Lexer):
           | acc2 in NAMED_ENTITY_PREFIXES:
               if nxt == Char";"
               | block:
-                  lex.temp_buffer := lex.temp_buffer ++ to_string(nxt)
                   acc2
               | block:
-                  lex.temp_buffer := lex.temp_buffer ++ to_string(nxt)
                   loop(acc2)
           | ~else:
               // No entity name extends acc2; we've gone too far, push back
@@ -1841,10 +1849,10 @@ fun named_character_reference_state(lex :: Lexer):
           acc
   // Now find the longest match: prefer `acc` itself, else any prefix.
   let match_name:
-    recur shrink(s :: String = collected):
+    recur shrink(s :~ String = collected):
       cond
       | s == "": #false
-      | NAMED_ENTITIES.has_key(s): s
+      | s in NAMED_ENTITIES: s
       | ~else: shrink(s.substring(0, String.length(s) - 1))
   cond
   | match_name:
@@ -2000,7 +2008,7 @@ state decimal_character_reference_state(lex)
     numeric_character_reference_end_state
 
 // 13.2.5.80 Numeric character reference end state
-fun numeric_character_reference_end_state(lex :: Lexer):
+fun numeric_character_reference_end_state(lex :~ Lexer):
   let code:
     let raw = NUMERIC_REF_CODE.value
     cond
@@ -2038,7 +2046,7 @@ fun numeric_character_reference_end_state(lex :: Lexer):
 // ----------------------------------------------------------------------------
 // Trampoline driver
 
-fun run(lex :: Lexer, start) :~ values(List, List):
+fun run(lex :~ Lexer, start) :~ values(List, List):
   recur loop(state = start):
     let next = state(lex)
     if next

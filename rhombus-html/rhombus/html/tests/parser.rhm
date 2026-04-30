@@ -186,7 +186,7 @@ fun emit_node(n :: Node, depth :: Int) :: List:
             acc
       List.cons(tag_line, attr_lines ++ body_lines)
   | t :: Text:
-      ["| " ++ indent ++ "\"" ++ t.mutable_data ++ "\""]
+      ["| " ++ indent ++ "\"" ++ t.get_string() ++ "\""]
   | c :: Comment:
       ["| " ++ indent ++ "<!-- " ++ c.data ++ " -->"]
   | _: []
