@@ -17,9 +17,11 @@ export:
   parse_fragment
   print_tree
   print_node
+  VOID_ELEMENTS
 
 // ============================================================================
 // HTML5 parser, following https://html.spec.whatwg.org/multipage/parsing.html
+// --- initial implementation by Claude.ai
 //
 // The lexer hands us tokens; we maintain a tree of nodes plus an open-elements
 // stack and dispatch each token to the current "insertion mode". An insertion
@@ -28,7 +30,7 @@ export:
 // and returns `#'consumed` (advance to next token) or `#'reprocess` (re-feed
 // the same token to the (possibly new) insertion mode).
 //
-// SCOPE -- third cut. Implemented:
+// Implemented:
 //
 //   - Initial / before-html / before-head / in-head / after-head modes
 //   - In-body mode (most common cases; see below)
@@ -72,7 +74,7 @@ export:
 //   - Driving the lexer's RCDATA / RAWTEXT / script-data state for
 //     <title> / <textarea> / <style>+friends / <script>
 //
-// NOT YET implemented (will be tackled in follow-ups):
+// NOT YET implemented:
 //
 //   - xlink: / xml: / xmlns: foreign-attribute namespace fixup. Our
 //     Attribute class is just (name, value); we keep the colon-prefixed
@@ -96,8 +98,19 @@ class Document():
   field doctype = #false                 // DocumentType | #false
   field quirks_mode = #'no_quirks        // #'no_quirks | #'quirks | #'limited_quirks
 
-class DocumentType(name :: String, public_id :: String, system_id :: String):
+class DocumentType(~name: name :: String = "html",
+                   ~public: public :: maybe(String) = #false,
+                   ~system: system :: maybe(String) = #false):
   extends Node
+  private implements Printable
+  private override describe(v, recur):
+    PrintDesc.list(
+      "DocumentType(",
+      [PrintDesc.block("~name", recur(name)),
+       & (if public | [PrintDesc.block("~public", recur(public))] | []),
+       & (if system | [PrintDesc.block("~system", recur(system))] | [])],
+      ")"
+    )
 
 class Element(
   name :: String,
@@ -141,7 +154,7 @@ class Text(data_accum :~ Port.Output.String):
                       done_string := data_accum.get_string()
                       done_string)
 
-class Comment(data :: String):
+class Comment(~data: data :: String = ""):
   extends Node
 
 // ----------------------------------------------------------------------------
@@ -430,13 +443,13 @@ fun insert_character(p :~ Parser, c :: Char):
           | _: #void
 
 fun insert_comment_into(parent, data :: String):
-  append_child(parent, Comment(data))
+  append_child(parent, Comment(~data: data))
 
 // "Insert a comment" per spec: uses the appropriate insertion target
 // (which redirects into a template's content fragment when applicable).
 fun insert_comment(p :~ Parser, data :: String):
   let (parent, before) = appropriate_insertion_target(p)
-  insert_node_at(parent, before, Comment(data))
+  insert_node_at(parent, before, Comment(~data: data))
 
 fun is_html_whitespace_char(c :: Char) :: Boolean:
   c == Char"\t" || c == Char"\n" || c == Char"\f" || c == Char"\r" || c == Char" "
@@ -1194,7 +1207,7 @@ fun adjust_attributes(attrs :: List, ns :: Symbol) :: List:
       | ~else: a.name
     cond
     | fixed_name == a.name: a
-    | ~else: Attribute(fixed_name, a.value)
+    | ~else: Attribute(~name: fixed_name, ~value: a.value)
 
 fun font_token_breaks_out(attrs :: List) :: Boolean:
   for any (a :: Attribute in attrs):
@@ -1435,21 +1448,21 @@ fun any_prefix_matches(prefixes :: List, s :: String) :: Boolean:
   for any (pfx :: String in prefixes):
     starts_with_ci(s, pfx)
 
-fun doctype_triggers_quirks(name :: String, pub :: String, sys :: String, has_system :: Boolean) :: Boolean:
-  let pub_cf = pub.foldcase()
+fun doctype_triggers_quirks(name :: String, pub :: maybe(String), sys :: maybe(String), has_system :: Boolean) :: Boolean:
+  let pub_cf = pub?.foldcase()
   let exact_quirks_pub:
     for any (pid :: String in QUIRKS_PUBLIC_IDS):
       pub_cf == pid.foldcase()
   cond
   | name.foldcase() != "html": #true
-  | sys.foldcase() == "http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd": #true
+  | sys?.foldcase() == "http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd": #true
   | exact_quirks_pub: #true
-  | any_prefix_matches(QUIRKS_PUBLIC_PREFIXES, pub): #true
-  | (!has_system) && any_prefix_matches(QUIRKS_IF_NO_SYSTEM_PREFIXES, pub): #true
+  | pub && any_prefix_matches(QUIRKS_PUBLIC_PREFIXES, pub): #true
+  | (!has_system) && pub && any_prefix_matches(QUIRKS_IF_NO_SYSTEM_PREFIXES, pub): #true
   | ~else: #false
 
-fun doctype_triggers_limited_quirks(pub :: String) :: Boolean:
-  any_prefix_matches(LIMITED_QUIRKS_PUBLIC_PREFIXES, pub)
+fun doctype_triggers_limited_quirks(pub :: maybe(String)) :: Boolean:
+  pub && any_prefix_matches(LIMITED_QUIRKS_PUBLIC_PREFIXES, pub)
 
 
 // ----------------------------------------------------------------------------
@@ -1463,14 +1476,14 @@ mode initial_mode(p, tok)
     insert_comment_into(p.document, cm.data)
     #'consumed
 | dt :: Token.Doctype:
-    let name = (if dt.name | dt.name :: String | "")
-    let pub = (if dt.public_id | dt.public_id :: String | "")
-    let sys = (if dt.system_id | dt.system_id :: String | "")
-    let d = DocumentType(name, pub, sys)
+    let name = dt.name || ""
+    let pub = dt.public_id
+    let sys = dt.system_id
+    let d = DocumentType(~name: name, ~public: pub, ~system: sys)
     p.document.children := List.add(p.document.children, d)
     p.document.doctype := d
     cond
-    | dt.force_quirks || doctype_triggers_quirks(name, pub, sys, if dt.system_id | #true | #false):
+    | dt.force_quirks || doctype_triggers_quirks(name, pub, sys, !(!sys)):
         p.document.quirks_mode := #'quirks
     | doctype_triggers_limited_quirks(pub):
         p.document.quirks_mode := #'limited_quirks
@@ -3066,8 +3079,8 @@ fun print_tree(d :: Document):
       let dt :~ DocumentType = d.doctype
       let extra:
         cond
-        | dt.public_id != "" || dt.system_id != "":
-            " \"" ++ dt.public_id ++ "\" \"" ++ dt.system_id ++ "\""
+        | dt.public || dt.system:
+            " \"" ++ (dt.public || "") ++ "\" \"" ++ (dt.system || "") ++ "\""
         | ~else: ""
       println("<!DOCTYPE " ++ dt.name ++ extra ++ ">")
   | ~else: #void

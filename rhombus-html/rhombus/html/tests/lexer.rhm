@@ -2,6 +2,7 @@
 
 // ============================================================================
 // Test runner for the html5lib tokenizer test suite.
+// --- initial implementation by Claude.ai
 //
 // Tests live in tests/cases/*.test (downloaded from
 // https://github.com/html5lib/html5lib-tests). Each is a JSON document of

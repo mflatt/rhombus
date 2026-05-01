@@ -18,6 +18,7 @@ export:
 
 // ============================================================================
 // HTML5 lexer, following https://html.spec.whatwg.org/#tokenization
+// --- initial implementation by Claude.ai
 //
 // Each spec "state" becomes a Rhombus function via the `state` macro defined
 // below. A state function reads one input character and returns the next
@@ -65,7 +66,8 @@ alias 'Token.Character': 'TokenCharacter'
 // In-progress builders
 
 // Finalized attribute as carried by emitted tokens
-class Attribute(name :: String, value :: String)
+class Attribute(~name: name :: String,
+                ~value: value :: String)
 
 class TagBuilder(
   kind,                              // #'start | #'end
@@ -82,8 +84,8 @@ class TagBuilder(
 class AttributeBuilder(name :~ Port.Output.String,
                        value :~ Port.Output.String):
   method finalize() :~ Attribute:
-    Attribute(rkt.#{datum-intern-literal}(name.get_string()),
-              value.get_string())
+    Attribute(~name: rkt.#{datum-intern-literal}(name.get_string()),
+              ~value: value.get_string())
 
 class CommentBuilder(mutable data :: String)
 

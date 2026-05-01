@@ -1,14 +1,18 @@
 #lang rhombus/static/and_meta
 import:
   "html/private/parser.rhm"
-  "html/private/class.rhm" open
+  "html/private/class.rhm"
+  "html/private/syntax.rhm"
+  "html/private/write.rhm"
   "html/private/class.rhm"!repack
 
 export:
   read
   all_from(.class)
+  all_from(.syntax)
+  all_from(.write)
 
 fun read(
   ~in: inp :: Port.Input = Port.Input.current()
-) :: Document:
+) :: class.Document:
   repack.repack(parser.parse(inp))
